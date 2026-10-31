@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://bpn.onrender.com/sitemap.xml
