@@ -39,6 +39,14 @@ function publicChurch(row) {
   };
 }
 
+// Full registrar-facing church object (the /api/me shape). Registration and
+// login must return this too: publicChurch() alone omits the registrar's
+// own name/email, which rendered "Signed in as ()" until a reload refetched
+// /api/me.
+function fullChurch(c) {
+  return { ...publicChurch(c), registrar_name: c.registrar_name, registrar_email: c.registrar_email, sheet_url: c.sheet_url || null, google_account_ref: c.google_account_ref || null };
+}
+
 // Registrar banner uploads: data URLs only (jpg/png/webp), 5MB cap on the
 // decoded bytes. Returns normalized { mime, base64 } or throws a 400-ready
 // error. Banner bytes live in Postgres (banner_data), never on disk.
@@ -121,7 +129,35 @@ app.post('/api/churches', async (req, res) => {
        pickDistinctBackground(existing.map((r) => r.background_image)), banner?.base64 || null, banner?.mime || null]
     );
     const church = rows[0];
-    res.status(201).json({ church: publicChurch(church), token: signToken(church.id) });
+    // Test-church auto-cleanup (ARMED, conditional): once FOUR churches
+    // OTHER than the three test churches exist, delete the test churches
+    // and their dependent data. Test churches never count toward the four,
+    // and nothing is deleted before that threshold — right now all churches
+    // are test ones, so this must not fire yet. Runs after every successful
+    // registration, so cleanup happens the moment the fourth non-test
+    // church registers. A cleanup failure must never fail the registration.
+    try {
+      const TEST_CHURCH_NAMES = ['Grace Fellowship Test Church', 'BPN Test Church', 'Banner Test Church'];
+      const { rows: cnt } = await pool.query(
+        `SELECT COUNT(*)::int AS n FROM churches WHERE NOT (name = ANY($1))`, [TEST_CHURCH_NAMES]
+      );
+      if (cnt[0].n >= 4) {
+        const { rows: doomed } = await pool.query(`SELECT id FROM churches WHERE name = ANY($1)`, [TEST_CHURCH_NAMES]);
+        const ids = doomed.map((r) => r.id);
+        if (ids.length) {
+          // Explicit deletes in dependency order (works whether or not the
+          // live tables' ON DELETE CASCADE clauses predate them).
+          await pool.query(`DELETE FROM comments WHERE chat_id IN (SELECT id FROM chats WHERE church_id = ANY($1))`, [ids]);
+          await pool.query(`DELETE FROM chats WHERE church_id = ANY($1)`, [ids]);
+          await pool.query(`DELETE FROM members WHERE church_id = ANY($1)`, [ids]);
+          await pool.query(`DELETE FROM churches WHERE id = ANY($1)`, [ids]);
+          console.log(`Test-church auto-cleanup ran: removed ${ids.length} test church(es) now that ${cnt[0].n} non-test churches exist.`);
+        }
+      }
+    } catch (cleanupErr) {
+      console.error('Test-church auto-cleanup failed (registration itself succeeded):', cleanupErr);
+    }
+    res.status(201).json({ church: fullChurch(church), token: signToken(church.id) });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'That registrar email is already registered.' });
     console.error(err);
@@ -151,7 +187,7 @@ app.post('/api/auth/login', async (req, res) => {
     if (!rows.length || !(await bcrypt.compare(password || '', rows[0].password_hash))) {
       return res.status(401).json({ error: 'Email or password is incorrect.' });
     }
-    res.json({ church: publicChurch(rows[0]), token: signToken(rows[0].id) });
+    res.json({ church: fullChurch(rows[0]), token: signToken(rows[0].id) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Login failed. Please try again.' });
@@ -160,13 +196,16 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.get('/api/me', authRegistrar, (req, res) => {
   const c = req.registrar;
-  res.json({ church: { ...publicChurch(c), registrar_name: c.registrar_name, registrar_email: c.registrar_email, sheet_url: c.sheet_url || null, google_account_ref: c.google_account_ref || null } });
+  res.json({ church: fullChurch(c) });
 });
 
-// Registrar: create / change the 4-character member PIN.
+// Registrar: create / change the 4-character member PIN. The PIN is
+// normalized (trimmed, uppercased) before the spec check, so a code typed
+// with surrounding whitespace or in lowercase is still accepted; unlock and
+// join already compare case-insensitively, so stored case is consistent.
 app.post('/api/churches/:id/pin', authRegistrar, requireOwnChurch, async (req, res) => {
-  const { pin } = req.body || {};
-  if (!PIN_RE.test(pin || '')) return res.status(400).json({ error: 'PIN must be exactly 4 letters or numbers.' });
+  const pin = String(req.body?.pin || '').trim().toUpperCase();
+  if (!PIN_RE.test(pin)) return res.status(400).json({ error: 'PIN must be exactly 4 letters or numbers.' });
   await pool.query('UPDATE churches SET pin = $1 WHERE id = $2', [pin, req.registrar.id]);
   res.json({ ok: true });
 });
