@@ -221,7 +221,7 @@ export default function App() {
         </button>
         <nav>
           {registrar && (
-            <button onClick={() => go('dashboard')}>My churches</button>
+            <button onClick={() => go('dashboard')}>My church</button>
           )}
         </nav>
         <button type="button" className="burger-btn" aria-label="Open menu" aria-expanded={showMenu} onClick={() => setShowMenu(true)}>☰</button>
