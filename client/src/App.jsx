@@ -76,6 +76,7 @@ export default function App() {
   const [admin, setAdmin] = useState(null);
   const [adminConfigured, setAdminConfigured] = useState(null);
   const [showBenefits, setShowBenefits] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const commentBox = useRef(null);
 
   const go = (v) => {
@@ -147,7 +148,36 @@ export default function App() {
             </>
           )}
         </nav>
+        <button type="button" className="burger-btn" aria-label="Open menu" aria-expanded={showMenu} onClick={() => setShowMenu(true)}>☰</button>
       </header>
+
+      {showMenu && (
+        <div className="menu-backdrop" onClick={() => setShowMenu(false)}>
+          <div className="menu-panel" role="menu" aria-label="Site menu" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="menu-close" aria-label="Close menu" onClick={() => setShowMenu(false)}>✕</button>
+            <button type="button" onClick={() => { setShowMenu(false); go('register'); }}>Register your church</button>
+            <button type="button" onClick={() => { setShowMenu(false); setShowBenefits(true); }}>The Benefits</button>
+            <a href="https://cryptok.online" target="_blank" rel="noreferrer" onClick={() => setShowMenu(false)}>Build a professional webapp ↗</a>
+          </div>
+        </div>
+      )}
+
+      {showBenefits && (
+        <div className="modal-backdrop" onClick={() => setShowBenefits(false)}>
+          <div className="modal-card" role="dialog" aria-modal="true" aria-label="The Benefits" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="modal-close" aria-label="Close" onClick={() => setShowBenefits(false)}>✕</button>
+            <h2>The Benefits</h2>
+            <ul>
+              <li>Engage with other professionals, anonymously</li>
+              <li>Post a link for others to join a group on WhatsApp</li>
+              <li>Post a new opportunity you are aware of</li>
+              <li>Discuss workplace lifestyle built on godly principles</li>
+              <li>Encourage someone</li>
+              <li>Share information</li>
+            </ul>
+          </div>
+        </div>
+      )}
 
       {error && <div className="alert err">{error}</div>}
       {notice && <div className="alert ok">{notice}</div>}
@@ -249,22 +279,6 @@ export default function App() {
             <button className="gold-btn" onClick={() => go('join')}>Join a group <Info text="Joining needs no login — just your name, profession and the member code." /></button>
             <button className="gold-btn outline" onClick={() => setShowBenefits(true)}>The Benefits</button>
           </div>
-          {showBenefits && (
-            <div className="modal-backdrop" onClick={() => setShowBenefits(false)}>
-              <div className="modal-card" role="dialog" aria-modal="true" aria-label="The Benefits" onClick={(e) => e.stopPropagation()}>
-                <button type="button" className="modal-close" aria-label="Close" onClick={() => setShowBenefits(false)}>✕</button>
-                <h2>The Benefits</h2>
-                <ul>
-                  <li>Engage with other professionals, anonymously</li>
-                  <li>Post a link for others to join a group on WhatsApp</li>
-                  <li>Post a new opportunity you are aware of</li>
-                  <li>Discuss workplace lifestyle built on godly principles</li>
-                  <li>Encourage someone</li>
-                  <li>Share information</li>
-                </ul>
-              </div>
-            </div>
-          )}
           <div className="carousel" aria-label="Professional groups">
             {groups.map((g) => (
               <button key={g.name} className="group-card" onClick={() => loadChats(g)}>
