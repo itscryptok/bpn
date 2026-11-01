@@ -37,10 +37,16 @@ const GROUP_IMAGES = {
 // backfills real values, so this should rarely be seen.
 const FALLBACK_CHURCH_BG = '/img/church2-01.webp';
 
-// First letter of the first word of a church name, for the monogram tile.
+// First letter of the church name, for the monogram tile. Test churches
+// are prefixed "Sample" (e.g. "Sample Grace Fellowship"), so a leading
+// "Sample" word is skipped — the monogram is the first letter of the next
+// word (G for Grace Fellowship, B for Believers Love World, R for Rock
+// City). Every other church is unaffected (its first word is used).
 function firstLetter(name) {
-  const first = String(name || '').trim().split(/\s+/)[0] || '';
-  return first ? first[0].toUpperCase() : 'B';
+  const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return 'B';
+  const first = words[0].toLowerCase() === 'sample' && words.length > 1 ? words[1] : words[0];
+  return first[0].toUpperCase();
 }
 
 // Church card visual: the registrar's uploaded banner wins; otherwise a
@@ -105,7 +111,7 @@ function Field({ label, ...props }) {
 }
 
 export default function App() {
-  const [view, setView] = useState(window.location.pathname.startsWith('/addy') ? 'admin' : window.location.pathname === '/register-church' ? 'register' : window.location.pathname === '/terms-of-use' ? 'terms' : window.location.pathname === '/privacy-policy' ? 'privacy' : 'home');
+  const [view, setView] = useState(window.location.pathname.startsWith('/addy') ? 'admin' : window.location.pathname === '/register-church' ? 'register' : window.location.pathname === '/terms-of-use' ? 'terms' : window.location.pathname === '/privacy-policy' ? 'privacy' : window.location.pathname === '/how-it-works' ? 'how' : 'home');
   const [config, setConfig] = useState({ groups: [], copy: {}, toggles: {} });
   const [churches, setChurches] = useState([]);
   const [query, setQuery] = useState('');
@@ -129,6 +135,10 @@ export default function App() {
   const [dashBannerFile, setDashBannerFile] = useState(null);
   const [dashBannerPreview, setDashBannerPreview] = useState('');
   const [dashBannerMsg, setDashBannerMsg] = useState('');
+  const [announcements, setAnnouncements] = useState([]);
+  const [annFile, setAnnFile] = useState(null);
+  const [annPreview, setAnnPreview] = useState('');
+  const [annError, setAnnError] = useState('');
   const commentBox = useRef(null);
 
   const go = (v) => {
@@ -138,7 +148,8 @@ export default function App() {
     else if (v === 'register') window.history.pushState({}, '', '/register-church');
     else if (v === 'terms') window.history.pushState({}, '', '/terms-of-use');
     else if (v === 'privacy') window.history.pushState({}, '', '/privacy-policy');
-    else if (window.location.pathname.startsWith('/addy') || window.location.pathname === '/register-church' || window.location.pathname === '/terms-of-use' || window.location.pathname === '/privacy-policy') window.history.pushState({}, '', '/');
+    else if (v === 'how') window.history.pushState({}, '', '/how-it-works');
+    else if (window.location.pathname.startsWith('/addy') || window.location.pathname === '/register-church' || window.location.pathname === '/terms-of-use' || window.location.pathname === '/privacy-policy' || window.location.pathname === '/how-it-works') window.history.pushState({}, '', '/');
   };
 
   const loadChurches = async (q = '') => {
@@ -168,9 +179,17 @@ export default function App() {
 
   const openChurch = (c) => { setChurch(c); setUnlocked(false); setGroup(null); go('pin'); };
 
+  // Announcements are per-church: fetched for the church being viewed, so
+  // they can only ever render on that church's own groups/chats pages.
+  const loadAnnouncements = async (churchId) => {
+    try { setAnnouncements(await api(`/api/churches/${churchId}/announcements`)); } catch { setAnnouncements([]); }
+  };
+
   const loadChats = async (g) => {
     const list = await api(`/api/churches/${church.id}/chats?group=${encodeURIComponent(g.name)}`);
-    setChats(list); setGroup(g); go('chats');
+    setChats(list); setGroup(g);
+    await loadAnnouncements(church.id);
+    go('chats');
   };
 
   const loadChat = async (c) => {
@@ -206,8 +225,9 @@ export default function App() {
             <button type="button" className="menu-close" aria-label="Close menu" onClick={() => setShowMenu(false)}>✕</button>
             <button type="button" onClick={() => { setShowMenu(false); go('register'); }}>Register your church</button>
             <button type="button" onClick={() => { setShowMenu(false); setShowBenefits(true); }}>The Benefits</button>
+            <button type="button" onClick={() => { setShowMenu(false); go('how'); }}>How it works</button>
             <a href="https://cryptok.online" target="_blank" rel="noreferrer" onClick={() => setShowMenu(false)}>Build your pro website ↗</a>
-            <button type="button" onClick={() => { setShowMenu(false); go('login'); }}>Registrar login</button>
+            <button type="button" onClick={() => { setShowMenu(false); go('login'); }}>Church admin login</button>
           </div>
         </div>
       )}
@@ -244,7 +264,7 @@ export default function App() {
               value={query} onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by church name or city…" aria-label="Search churches"
             />
-            <Info text="Type your church name. Tap its card, then enter the 4-character code your church registrar gave you." />
+            <Info text="Type your church name. Tap its card, then enter the 4-character code from the church admin." />
           </section>
 
           {churches.length === 0 ? (
@@ -272,7 +292,7 @@ export default function App() {
       {view === 'register' && (
         <main className="narrow">
           <h1>Register your church</h1>
-          <p className="muted">You become this church's registrar. <Info text="The registrar is the person who manages the church on BPN: they set the member code and see the member list." /></p>
+          <p className="muted">You become the church admin for this church. <Info text="The church admin is the person who manages the church on BPN: they set the member code and see the member list." /></p>
           <form onSubmit={(e) => submit(e, async (f) => {
             const payload = Object.fromEntries(f);
             if (bannerFile) payload.banner_data_url = await fileToDataUrl(bannerFile);
@@ -282,7 +302,7 @@ export default function App() {
           })}>
             <Field label="Church name" name="name" required />
             <Field label="City" name="city" />
-            <Field label="Your name (registrar)" name="registrar_name" required />
+            <Field label="Your name (church admin)" name="registrar_name" required />
             <Field label="Your email" name="registrar_email" type="email" required />
             <Field label="Password (6+ characters)" name="password" type="password" required minLength={6} />
             <label className="field">
@@ -310,7 +330,7 @@ export default function App() {
 
       {view === 'login' && (
         <main className="narrow">
-          <h1>Registrar login</h1>
+          <h1>Church admin login</h1>
           <form onSubmit={(e) => submit(e, async (f) => {
             const d = await api('/api/auth/login', { method: 'POST', body: JSON.stringify(Object.fromEntries(f)) });
             localStorage.setItem('bpn_token', d.token); setRegistrar(d.church); go('dashboard');
@@ -326,13 +346,13 @@ export default function App() {
         <main className="narrow">
           <button className="back" onClick={() => go('home')}>← All churches</button>
           <h1>{church.name}</h1>
-          <p className="muted">{church.city} <Info text="Members need the code from their church registrar to enter this church's area." /></p>
+          <p className="muted">{church.city} <Info text="Members need the code from the church admin to enter this church's area." /></p>
           {!church.has_pin ? (
-            <p className="alert err">This church has no member code yet — ask its registrar to set one.</p>
+            <p className="alert err">This church has no member code yet — ask its church admin to set one.</p>
           ) : (
             <form onSubmit={(e) => submit(e, async (f) => {
               await api(`/api/churches/${church.id}/unlock`, { method: 'POST', body: JSON.stringify({ pin: f.get('pin') }) });
-              setUnlocked(true); go('groups');
+              setUnlocked(true); await loadAnnouncements(church.id); go('groups');
             })}>
               <Field label="Member code (4 letters or numbers)" name="pin" required maxLength={4} autoFocus placeholder="e.g. A3K9" />
               <button className="gold-btn big">Enter</button>
@@ -354,6 +374,18 @@ export default function App() {
             <button className="gold-btn" onClick={() => go('join')}>Join a group <Info text="Joining needs no login — just your name, profession and the member code." /></button>
             <button className="gold-btn outline" onClick={() => setShowBenefits(true)}>The Benefits</button>
           </div>
+          {announcements.length > 0 && (
+            <section className="announcements" aria-label="Church announcements">
+              <h2>Announcements</h2>
+              {announcements.map((a) => (
+                <article key={a.id} className="announcement-card">
+                  <h3>{a.title}</h3>
+                  <p>{a.details}</p>
+                  {a.has_image && <img src={`/api/announcements/${a.id}/image`} alt="" loading="lazy" />}
+                </article>
+              ))}
+            </section>
+          )}
           <div className="carousel" aria-label="Professional groups">
             {groups.map((g) => (
               <button key={g.name} className="group-card" onClick={() => loadChats(g)}>
@@ -371,7 +403,7 @@ export default function App() {
         <main className="narrow">
           <button className="back" onClick={() => go('groups')}>← Groups</button>
           <h1>Join {church.name}</h1>
-          <p className="muted">No login needed. <Info text="Your details go to your church's member list, which the registrar can view (and link to a Google Sheet). Comments you post later show only as 'member'." /></p>
+          <p className="muted">No login needed. <Info text="Your details go to your church's member list, which the church admin can view (and link to a Google Sheet). Comments you post later show only as 'member'." /></p>
           <form onSubmit={(e) => submit(e, async (f) => {
             await api(`/api/churches/${church.id}/members`, { method: 'POST', body: JSON.stringify(Object.fromEntries(f)) });
             setNotice('Welcome! You are now a member.'); go('groups');
@@ -390,6 +422,18 @@ export default function App() {
           <button className="back" onClick={() => go('groups')}>← Groups</button>
           <h1>{group.name}</h1>
           <button className="gold-btn" onClick={() => go('newchat')}>Create a chat <Info text="Anyone can start a chat — no sign-in needed." /></button>
+          {announcements.length > 0 && (
+            <section className="announcements" aria-label="Church announcements">
+              <h2>Announcements</h2>
+              {announcements.map((a) => (
+                <article key={a.id} className="announcement-card">
+                  <h3>{a.title}</h3>
+                  <p>{a.details}</p>
+                  {a.has_image && <img src={`/api/announcements/${a.id}/image`} alt="" loading="lazy" />}
+                </article>
+              ))}
+            </section>
+          )}
           <section className="stack">
             {chats.length === 0 && <p className="empty">No chats here yet. Start the first one.</p>}
             {chats.map((c) => (
@@ -447,7 +491,7 @@ export default function App() {
 
       {view === 'dashboard' && registrar && (
         <main>
-          <h1>Registrar dashboard</h1>
+          <h1>Church admin dashboard</h1>
           <p className="muted">Signed in as {registrar.registrar_name} ({registrar.registrar_email})</p>
           <section className="overlap-stack" aria-label="Your churches">
             <article className="overlap-card">
@@ -509,6 +553,43 @@ export default function App() {
               )}
             </div>
             {dashBannerMsg && <p className="muted">{dashBannerMsg}</p>}
+          </section>
+          <section className="banner-box">
+            <h2>Announcements</h2>
+            <p className="muted">Post an announcement for your church — it appears pinned above your church's chat lists, newest first.</p>
+            <form onSubmit={async (e) => {
+              e.preventDefault(); setError(''); setNotice('');
+              try {
+                const f = new FormData(e.target);
+                let image_data_url = null;
+                if (annFile) image_data_url = await fileToDataUrl(annFile);
+                await api(`/api/churches/${registrar.id}/announcements`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ title: f.get('title'), details: f.get('details'), image_data_url }) });
+                e.target.reset(); setAnnFile(null); setAnnPreview(''); setAnnError('');
+                setNotice('Announcement posted — it now appears above your church\'s chat lists.');
+              } catch (err) { setError(err.message); }
+            }}>
+              <Field label="Title of the announcement" name="title" required />
+              <label className="field"><span>Details of the announcement</span><textarea name="details" required rows={4} /></label>
+              <label className="field">
+                <span>Image (optional)</span>
+                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => {
+                  const file = e.target.files[0] || null;
+                  const err = bannerFileError(file);
+                  setAnnError(err);
+                  if (err || !file) { setAnnFile(null); setAnnPreview(''); return; }
+                  setAnnFile(file);
+                  setAnnPreview(URL.createObjectURL(file));
+                }} />
+              </label>
+              {annError && <p className="alert err">{annError}</p>}
+              {annPreview && (
+                <div className="banner-preview">
+                  <img src={annPreview} alt="Announcement image preview" />
+                  <p>Image ready: {annFile.name} ({Math.round(annFile.size / 1024)} KB).</p>
+                </div>
+              )}
+              <button className="gold-btn big">Post announcement</button>
+            </form>
           </section>
           <button className="muted-btn" onClick={() => { localStorage.removeItem('bpn_token'); setRegistrar(null); go('home'); }}>Log out</button>
         </main>
@@ -616,13 +697,13 @@ export default function App() {
           <h2>Comments are anonymous</h2>
           <p>Comments show only the word “member” with a colorful person icon. No real names appear on comments, and a comment is never tied to a named account.</p>
           <h2>Member codes</h2>
-          <p>Each church has a 4-character member code set by its registrar. You need that code — given to you by your church's registrar — to enter a church's area and to join its member list. Keep your church's code for its members.</p>
+          <p>Each church has a 4-character member code set by its church admin. You need that code — given to you by your church admin — to enter a church's area and to join its member list. Keep your church's code for its members.</p>
           <h2>Joining a member list</h2>
-          <p>Joining asks for your name, profession, and contact. Those details go to your church's member list, which the church's registrar can view. A registrar may link the list to a Google Sheet, and can export it as a CSV file.</p>
+          <p>Joining asks for your name, profession, and contact. Those details go to your church's member list, which your church admin can view. A church admin may link the list to a Google Sheet, and can export it as a CSV file.</p>
           <h2>Church banners</h2>
-          <p>A registrar may upload a banner image for their church. It is shown on the church's card and on the church's professional groups page. A registrar can replace or remove it at any time.</p>
-          <h2>Registrar responsibilities</h2>
-          <p>The registrar manages their church on BPN: they set and change the member code, view the member list, and manage the church banner. The site administrator manages the app itself.</p>
+          <p>A church admin may upload a banner image for their church. It is shown on the church's card and on the church's professional groups page. A church admin can replace or remove it at any time.</p>
+          <h2>Church admin responsibilities</h2>
+          <p>The church admin manages their church on BPN: they set and change the member code, view the member list, and manage the church banner. The site administrator manages the app itself.</p>
           <h2>Use the network respectfully</h2>
           <p>Use BPN in a way that fits a professional network built on godly principles: be encouraging, share genuine opportunities and information, and respect other members.</p>
           <h2>Availability</h2>
@@ -638,21 +719,55 @@ export default function App() {
           <h1>Privacy Policy</h1>
           <p className="muted">Plain-language privacy notes for Believers Professional Network (BPN). This page describes what the app actually collects and how it is used — nothing more.</p>
           <h2>What is collected</h2>
-          <p><b>Churches:</b> church name and city. <b>Registrars:</b> name and email, plus a password that is stored hashed, never in plain text. <b>Members:</b> the name, profession, and contact details given when joining a church's member list. <b>Chats and comments:</b> chat titles, opening messages, and comment text.</p>
+          <p><b>Churches:</b> church name and city. <b>Church admins:</b> name and email, plus a password that is stored hashed, never in plain text. <b>Members:</b> the name, profession, and contact details given when joining a church's member list. <b>Chats and comments:</b> chat titles, opening messages, and comment text.</p>
           <h2>What is not collected</h2>
           <p>No account is needed to browse churches and groups, create a chat, or comment — so no identity is collected for those actions. Comments carry no name at all: they show only the word “member” with a colorful person icon.</p>
           <h2>Sign-in tokens</h2>
-          <p>Registrar and admin sign-in tokens are stored in your browser's local storage so you stay signed in. Logging out removes them.</p>
+          <p>Church admin and admin sign-in tokens are stored in your browser's local storage so you stay signed in. Logging out removes them.</p>
           <h2>Member lists and Google Sheets</h2>
-          <p>Member details are visible to that church's registrar through the member list. If the registrar links a Google Sheet, the list can be viewed there, and the registrar can also export it as a CSV file. Automatic syncing to a Sheet only runs when a service account is connected; otherwise the registrar imports the CSV manually.</p>
+          <p>Member details are visible to your church admin through the member list. If the church admin links a Google Sheet, the list can be viewed there, and the church admin can also export it as a CSV file. Automatic syncing to a Sheet only runs when a service account is connected; otherwise the church admin imports the CSV manually.</p>
           <h2>Member codes</h2>
-          <p>Each church's 4-character member code is set by its registrar and is not public. It is needed to enter a church's area and to join its member list.</p>
+          <p>Each church's 4-character member code is set by its church admin and is not public. It is needed to enter a church's area and to join its member list.</p>
           <h2>Church banners</h2>
-          <p>A banner image uploaded by a registrar is stored in the app's database and shown on that church's card and professional groups page. Removing it returns the card to its default letter tile.</p>
+          <p>A banner image uploaded by a church admin is stored in the app's database and shown on that church's card and professional groups page. Removing it returns the card to its default letter tile.</p>
           <h2>Questions about your data</h2>
-          <p>Your member details are held in your church's member list, so questions about them are best raised with your church's registrar.</p>
+          <p>Your member details are held in your church's member list, so questions about them are best raised with your church admin.</p>
           <h2>Changes to this policy</h2>
           <p>This policy may be updated from time to time. Continued use of the site after an update means you accept the updated policy.</p>
+        </main>
+      )}
+
+      {view === 'how' && (
+        <main className="narrow">
+          <button className="back" onClick={() => go('home')}>← Home</button>
+          <h1>How it works</h1>
+          <p className="muted">Six short steps — no sign-up needed to take part.</p>
+          <section className="how-steps">
+            <article className="how-step">
+              <span className="how-num">1</span>
+              <div><h2>Find your church</h2><p>Browse or search the church cards on the homepage.</p></div>
+            </article>
+            <article className="how-step how-key">
+              <span className="how-num">2</span>
+              <div><h2>Get your unique code from your church admin</h2><p>Each church has its own 4-character member code — and only the church admin can give it to you. This code is the key to your church's area on BPN.</p></div>
+            </article>
+            <article className="how-step">
+              <span className="how-num">3</span>
+              <div><h2>Enter the code to unlock your church</h2><p>Tap your church's card, then enter the code to unlock that church's professional groups.</p></div>
+            </article>
+            <article className="how-step">
+              <span className="how-num">4</span>
+              <div><h2>Pick a group, join the conversation</h2><p>Pick a professional group, then browse chats, create a chat, and comment — no sign-up needed, and comments show only as “member”, never your real name.</p></div>
+            </article>
+            <article className="how-step">
+              <span className="how-num">5</span>
+              <div><h2>Join as a member</h2><p>After entering the code, tap “Join a group” and add your name, profession, and contact to join your church's member list.</p></div>
+            </article>
+            <article className="how-step">
+              <span className="how-num">6</span>
+              <div><h2>For church admins</h2><p>Register your church, log in as church admin, create or change the member code, view your members, and post announcements that appear above your church's chat page.</p></div>
+            </article>
+          </section>
         </main>
       )}
 
@@ -661,8 +776,9 @@ export default function App() {
         <nav aria-label="Footer">
           <button type="button" onClick={() => go('register')}>Register your church</button>
           <button type="button" onClick={() => setShowBenefits(true)}>The Benefits</button>
+          <button type="button" onClick={() => go('how')}>How it works</button>
           <a href="https://cryptok.online" target="_blank" rel="noreferrer">Build your pro website ↗</a>
-          <button type="button" onClick={() => go('login')}>Registrar login</button>
+          <button type="button" onClick={() => go('login')}>Church admin login</button>
           <button type="button" onClick={() => go('terms')}>Terms of Use</button>
           <button type="button" onClick={() => go('privacy')}>Privacy</button>
         </nav>
