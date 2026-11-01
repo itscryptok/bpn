@@ -425,6 +425,7 @@ export default function App() {
           <div className="join-row">
             <button className="gold-btn" onClick={() => go('newchat')}>Create a chat <Info text="Anyone can start a chat — no sign-in needed." /></button>
             <button className="gold-btn outline" onClick={() => setShowAnnouncements(true)}>Announcements</button>
+            <button className="gold-btn" onClick={() => go('join')}>Join this group</button>
           </div>
           {showAnnouncements && (
             <div className="modal-backdrop" onClick={() => setShowAnnouncements(false)}>
