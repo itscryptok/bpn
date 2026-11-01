@@ -109,6 +109,24 @@ app.get('/api/churches', async (req, res) => {
   }
 });
 
+// Single-church detail for the pin page. This is the ONLY public payload
+// that may carry a connect code: display_code is included ONLY when the
+// church is flagged is_sample AND has a code set. The list/search payloads
+// above (publicChurch) never include any code field, for any church — and
+// neither does any other payload in this file.
+app.get('/api/churches/:id', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM churches WHERE id = $1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Church not found.' });
+    const out = publicChurch(rows[0]);
+    if (rows[0].is_sample && rows[0].pin) out.display_code = rows[0].pin;
+    res.json(out);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Could not load church.' });
+  }
+});
+
 app.post('/api/churches', async (req, res) => {
   try {
     const { name, city, registrar_name, registrar_email, password, pin, banner_data_url } = req.body || {};
