@@ -198,7 +198,7 @@ export default function App() {
             <button type="button" className="menu-close" aria-label="Close menu" onClick={() => setShowMenu(false)}>✕</button>
             <button type="button" onClick={() => { setShowMenu(false); go('register'); }}>Register your church</button>
             <button type="button" onClick={() => { setShowMenu(false); setShowBenefits(true); }}>The Benefits</button>
-            <a href="https://cryptok.online" target="_blank" rel="noreferrer" onClick={() => setShowMenu(false)}>Build a professional webapp ↗</a>
+            <a href="https://cryptok.online" target="_blank" rel="noreferrer" onClick={() => setShowMenu(false)}>Build your pro website ↗</a>
             <button type="button" onClick={() => { setShowMenu(false); go('login'); }}>Registrar login</button>
           </div>
         </div>
