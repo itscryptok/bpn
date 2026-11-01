@@ -55,6 +55,24 @@ h1 { font-size: 30px; line-height: 1.2; }
 .group-cta { display: block; color: var(--blue); font-weight: 700; padding: 8px 16px 0; }
 .swipe-hint { text-align: center; }
 .stack { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
+/* Church announcements: pinned above the chat cards (and the groups
+   carousel) of their own church only, newest first. */
+.announcements { display: flex; flex-direction: column; gap: 14px; margin: 18px 0; }
+.announcements h2 { margin: 0; }
+.announcement-card { background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 18px; box-shadow: 0 1px 6px rgba(10,35,82,.06); }
+.announcement-card h3 { margin: 0 0 8px; }
+.announcement-card p { margin: 0 0 10px; white-space: pre-wrap; word-break: break-word; }
+.announcement-card img { width: 100%; height: 220px; object-fit: cover; border-radius: 12px; display: block; }
+/* How it works: numbered step cards; step 2 (the church-admin code) is
+   the key step, so it gets the prominent gold-bordered treatment. */
+.how-steps { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
+.how-step { display: flex; gap: 14px; background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 18px; align-items: flex-start; }
+.how-step h2 { margin: 0 0 6px; font-size: 19px; }
+.how-step p { margin: 0; color: var(--muted); }
+.how-step.how-key { border: 3px solid var(--gold); box-shadow: 0 4px 18px rgba(242,183,5,.35); }
+.how-step.how-key h2 { color: var(--navy); font-size: 21px; }
+.how-step.how-key p { color: var(--ink); }
+.how-num { flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--gold); color: var(--navy); display: grid; place-items: center; font-weight: 800; font-size: 19px; }
 .chat-card { text-align: left; background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 0 0 18px; overflow: hidden; box-shadow: 0 1px 6px rgba(10,35,82,.06); }
 .chat-card-img { display: block; height: 100px; overflow: hidden; background: var(--navy); }
 .chat-card-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
