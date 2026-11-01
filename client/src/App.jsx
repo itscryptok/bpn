@@ -52,6 +52,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [admin, setAdmin] = useState(null);
   const [adminConfigured, setAdminConfigured] = useState(null);
+  const [showBenefits, setShowBenefits] = useState(false);
   const commentBox = useRef(null);
 
   const go = (v) => {
@@ -228,7 +229,26 @@ export default function App() {
         <main>
           <button className="back" onClick={() => go('home')}>← All churches</button>
           <h1>{church.name} <span className="muted">· Professional groups</span></h1>
-          <button className="gold-btn" onClick={() => go('join')}>Join as a member <Info text="Joining needs no login — just your name, profession and the member code." /></button>
+          <div className="join-row">
+            <button className="gold-btn" onClick={() => go('join')}>Join a group <Info text="Joining needs no login — just your name, profession and the member code." /></button>
+            <button className="gold-btn outline" onClick={() => setShowBenefits(true)}>The Benefits</button>
+          </div>
+          {showBenefits && (
+            <div className="modal-backdrop" onClick={() => setShowBenefits(false)}>
+              <div className="modal-card" role="dialog" aria-modal="true" aria-label="The Benefits" onClick={(e) => e.stopPropagation()}>
+                <button type="button" className="modal-close" aria-label="Close" onClick={() => setShowBenefits(false)}>✕</button>
+                <h2>The Benefits</h2>
+                <ul>
+                  <li>Engage with other professionals, anonymously</li>
+                  <li>Post a link for others to join a group on WhatsApp</li>
+                  <li>Post a new opportunity you are aware of</li>
+                  <li>Discuss workplace lifestyle built on godly principles</li>
+                  <li>Encourage someone</li>
+                  <li>Share information</li>
+                </ul>
+              </div>
+            </div>
+          )}
           <div className="carousel" aria-label="Professional groups">
             {groups.map((g) => (
               <button key={g.name} className="group-card" style={{ '--gc': g.color }} onClick={() => loadChats(g)}>
@@ -255,7 +275,7 @@ export default function App() {
             <Field label="Profession" name="profession" />
             <Field label="Contact (phone or email)" name="contact" />
             <Field label="Member code" name="pin" required maxLength={4} />
-            <button className="gold-btn big">Join as a member</button>
+            <button className="gold-btn big">Join a group</button>
           </form>
         </main>
       )}
