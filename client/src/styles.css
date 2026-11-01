@@ -82,4 +82,11 @@ h1 { font-size: 30px; line-height: 1.2; }
 .stats b { display: block; font-size: 28px; }
 .stats span { color: var(--muted); }
 .muted-btn { background: none; border: 1px solid var(--line); border-radius: 999px; padding: 9px 16px; margin-top: 16px; }
+.join-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(4,18,54,.55); display: grid; place-items: center; padding: 20px; z-index: 50; }
+.modal-card { position: relative; background: #fff; color: #141414; border-radius: 20px; padding: 24px 28px; max-width: 520px; width: 100%; box-shadow: 0 16px 40px rgba(0,0,0,.30); }
+.modal-card h2 { margin: 0 0 12px; color: #141414; }
+.modal-card ul { margin: 0; padding-left: 22px; color: #141414; }
+.modal-card li { margin: 8px 0; }
+.modal-close { position: absolute; top: 10px; right: 12px; background: none; border: 0; color: #141414; font-size: 26px; line-height: 1; padding: 4px 8px; }
 footer { text-align: center; color: var(--muted); padding: 32px 0 0; }
