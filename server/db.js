@@ -88,6 +88,8 @@ async function createTables(client) {
     -- is base64 image bytes; banner_mime is its content type.
     ALTER TABLE churches ADD COLUMN IF NOT EXISTS banner_data TEXT;
     ALTER TABLE churches ADD COLUMN IF NOT EXISTS banner_mime TEXT;
+    ALTER TABLE members ADD COLUMN IF NOT EXISTS best_time TEXT;
+    ALTER TABLE members ADD COLUMN IF NOT EXISTS interesting_facts TEXT;
   `);
 }
 
