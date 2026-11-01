@@ -109,3 +109,5 @@ footer { text-align: center; color: var(--muted); padding: 32px 0 0; }
 .site-footer nav { display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: center; margin-top: 12px; }
 .site-footer nav button { background: none; border: none; padding: 0; color: inherit; text-decoration: underline; }
 .site-footer nav a { color: inherit; }
+
+.site-footer .footer-copy { margin-top: 12px; }
