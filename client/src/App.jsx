@@ -311,8 +311,10 @@ export default function App() {
             <Field label="Church name" name="name" required />
             <Field label="City" name="city" />
             <Field label="Your name (church admin)" name="registrar_name" required />
+            <p className="muted">Church admin login details:</p>
             <Field label="Your email" name="registrar_email" type="email" required />
             <Field label="Password (6+ characters)" name="password" type="password" required minLength={6} />
+            <p className="muted">You'll use this email and password to log in as church admin next time.</p>
             <Field label="Connect code (4 letters or numbers)" name="pin" required maxLength={4} placeholder="e.g. A3K9"
               info="Give this code to your members — they will enter it as their connect code when they get on this platform to unlock your church's groups." />
             <label className="field">
