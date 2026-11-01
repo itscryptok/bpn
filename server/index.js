@@ -63,16 +63,16 @@ function parseBannerDataUrl(value) {
 
 async function authRegistrar(req, res, next) {
   const id = verifyToken((req.headers.authorization || '').replace(/^Bearer\s+/i, ''));
-  if (!id) return res.status(401).json({ error: 'Please log in as registrar.' });
+  if (!id) return res.status(401).json({ error: 'Please log in as church admin.' });
   const { rows } = await pool.query('SELECT * FROM churches WHERE id = $1', [id]);
-  if (!rows.length) return res.status(401).json({ error: 'Please log in as registrar.' });
+  if (!rows.length) return res.status(401).json({ error: 'Please log in as church admin.' });
   req.registrar = rows[0];
   next();
 }
 
 function requireOwnChurch(req, res, next) {
   if (Number(req.params.id) !== req.registrar.id) {
-    return res.status(403).json({ error: 'That church belongs to another registrar.' });
+    return res.status(403).json({ error: 'That church belongs to another church admin.' });
   }
   next();
 }
@@ -113,7 +113,7 @@ app.post('/api/churches', async (req, res) => {
   try {
     const { name, city, registrar_name, registrar_email, password, banner_data_url } = req.body || {};
     if (!name?.trim() || !registrar_name?.trim() || !EMAIL_RE.test(registrar_email || '') || !password || password.length < 6) {
-      return res.status(400).json({ error: 'Church name, registrar name, a valid email and a password of 6+ characters are required.' });
+      return res.status(400).json({ error: 'Church name, church admin name, a valid email and a password of 6+ characters are required.' });
     }
     let banner = null;
     if (banner_data_url) {
@@ -137,7 +137,7 @@ app.post('/api/churches', async (req, res) => {
     // registration, so cleanup happens the moment the fourth non-test
     // church registers. A cleanup failure must never fail the registration.
     try {
-      const TEST_CHURCH_NAMES = ['Grace Fellowship Test Church', 'BPN Test Church', 'Banner Test Church'];
+      const TEST_CHURCH_NAMES = ['Sample Grace Fellowship', 'Sample Believers Love World', 'Sample Rock City'];
       const { rows: cnt } = await pool.query(
         `SELECT COUNT(*)::int AS n FROM churches WHERE NOT (name = ANY($1))`, [TEST_CHURCH_NAMES]
       );
@@ -149,6 +149,7 @@ app.post('/api/churches', async (req, res) => {
           // live tables' ON DELETE CASCADE clauses predate them).
           await pool.query(`DELETE FROM comments WHERE chat_id IN (SELECT id FROM chats WHERE church_id = ANY($1))`, [ids]);
           await pool.query(`DELETE FROM chats WHERE church_id = ANY($1)`, [ids]);
+          await pool.query(`DELETE FROM announcements WHERE church_id = ANY($1)`, [ids]);
           await pool.query(`DELETE FROM members WHERE church_id = ANY($1)`, [ids]);
           await pool.query(`DELETE FROM churches WHERE id = ANY($1)`, [ids]);
           console.log(`Test-church auto-cleanup ran: removed ${ids.length} test church(es) now that ${cnt[0].n} non-test churches exist.`);
@@ -159,7 +160,7 @@ app.post('/api/churches', async (req, res) => {
     }
     res.status(201).json({ church: fullChurch(church), token: signToken(church.id) });
   } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'That registrar email is already registered.' });
+    if (err.code === '23505') return res.status(409).json({ error: 'That church admin email is already registered.' });
     console.error(err);
     res.status(500).json({ error: 'Registration failed. Please try again.' });
   }
@@ -236,13 +237,67 @@ app.delete('/api/churches/:id/banner', authRegistrar, requireOwnChurch, async (r
   }
 });
 
+// Church announcements: posted by the owning church's admin only (auth +
+// own-church guard, same as PIN/banner), displayed publicly per church,
+// newest first. Image (optional) uses the same validation as banners:
+// JPG/PNG/WebP, 5MB cap, stored in Postgres, never on disk.
+app.get('/api/churches/:id/announcements', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, church_id, title, details, (image_data IS NOT NULL) AS has_image, created_at
+       FROM announcements WHERE church_id = $1 ORDER BY created_at DESC`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Could not load announcements.' });
+  }
+});
+
+app.get('/api/announcements/:id/image', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT image_data, image_mime FROM announcements WHERE id = $1', [req.params.id]);
+    if (!rows.length || !rows[0].image_data) return res.status(404).json({ error: 'This announcement has no image.' });
+    res.setHeader('Content-Type', rows[0].image_mime || 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(Buffer.from(rows[0].image_data, 'base64'));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Could not load announcement image.' });
+  }
+});
+
+app.post('/api/churches/:id/announcements', authRegistrar, requireOwnChurch, async (req, res) => {
+  try {
+    const { title, details, image_data_url } = req.body || {};
+    if (!title?.trim() || !details?.trim()) {
+      return res.status(400).json({ error: 'An announcement title and details are required.' });
+    }
+    let image = null;
+    if (image_data_url) {
+      try { image = parseBannerDataUrl(image_data_url); }
+      catch (err) { return res.status(400).json({ error: err.message.replace(/^Banner/, 'Announcement image') }); }
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO announcements (church_id, title, details, image_data, image_mime)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id, church_id, title, details, (image_data IS NOT NULL) AS has_image, created_at`,
+      [req.registrar.id, title.trim(), details.trim(), image?.base64 || null, image?.mime || null]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Could not post the announcement.' });
+  }
+});
+
 // Public: check a PIN to unlock a church area (never reveals the PIN).
 app.post('/api/churches/:id/unlock', async (req, res) => {
   const { rows } = await pool.query('SELECT pin FROM churches WHERE id = $1', [req.params.id]);
   if (!rows.length) return res.status(404).json({ error: 'Church not found.' });
-  if (!rows[0].pin) return res.status(400).json({ error: 'This church has no member code yet — ask its registrar to set one.' });
+  if (!rows[0].pin) return res.status(400).json({ error: 'This church has no member code yet — ask its church admin to set one.' });
   if (String(req.body?.pin || '').toUpperCase() !== rows[0].pin.toUpperCase()) {
-    return res.status(403).json({ error: 'That code is incorrect. Please check with your church registrar.' });
+    return res.status(403).json({ error: 'That code is incorrect. Please check with your church admin.' });
   }
   res.json({ ok: true });
 });
