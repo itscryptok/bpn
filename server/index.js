@@ -514,6 +514,23 @@ app.get('/api/admin/overview', async (req, res) => {
   res.json({ totals: totals.rows[0], churches: churches.rows, group_count: groups.length });
 });
 
+// /addy admin only: delete a church. Members, chats, comments, and
+// announcements go with it via the ON DELETE CASCADE foreign keys.
+// Confirmation happens in the /addy UI; the endpoint itself requires a
+// valid admin token, so a church-admin token (or no token) can never
+// delete a church.
+app.delete('/api/admin/churches/:id', async (req, res) => {
+  if (!adminAuthed(req)) return res.status(401).json({ error: 'Admin login required.' });
+  try {
+    const { rows } = await pool.query('DELETE FROM churches WHERE id = $1 RETURNING id, name', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Church not found.' });
+    res.json({ ok: true, deleted: rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Could not delete the church.' });
+  }
+});
+
 // Static frontend + SPA fallback.
 const dist = path.join(__dirname, '..', 'dist');
 app.use(express.static(dist));
