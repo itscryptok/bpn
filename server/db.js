@@ -67,7 +67,28 @@ async function createTables(client) {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     ALTER TABLE churches ADD COLUMN IF NOT EXISTS google_account_ref TEXT;
+    ALTER TABLE churches ADD COLUMN IF NOT EXISTS background_image TEXT;
   `);
+}
+
+// One stored background per church, picked at random from these faith-themed
+// images when the church registers. The choice lives in the DB so a church's
+// card image never reshuffles on reload.
+export const CHURCH_BACKGROUNDS = [
+  '/img/church-01.webp',
+  '/img/church-02.webp',
+  '/img/church-03.webp',
+  '/img/church-04.webp',
+  '/img/church-05.webp',
+  '/img/church-06.webp',
+  '/img/church-07.webp',
+  '/img/church-08.webp',
+  '/img/church-09.webp',
+  '/img/church-10.webp'
+];
+
+export function randomChurchBackground() {
+  return CHURCH_BACKGROUNDS[Math.floor(Math.random() * CHURCH_BACKGROUNDS.length)];
 }
 
 export async function initDb() {
@@ -86,6 +107,15 @@ export async function initDb() {
     await maint.query(`CREATE DATABASE "${target.replace(/"/g, '')}"`);
     await maint.end();
     await createTables(pool);
+  }
+
+  // Backfill: churches created before backgrounds existed get a stored random
+  // background (idempotent — only touches rows with none assigned).
+  const { rows: unassigned } = await pool.query(
+    `SELECT id FROM churches WHERE background_image IS NULL OR background_image = ''`
+  );
+  for (const row of unassigned) {
+    await pool.query('UPDATE churches SET background_image = $1 WHERE id = $2', [randomChurchBackground(), row.id]);
   }
 
   // Seed DB-backed config (only when empty). Groups, copy and toggles live
