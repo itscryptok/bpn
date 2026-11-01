@@ -136,6 +136,7 @@ export default function App() {
   const [dashBannerPreview, setDashBannerPreview] = useState('');
   const [dashBannerMsg, setDashBannerMsg] = useState('');
   const [announcements, setAnnouncements] = useState([]);
+  const [showAnnouncements, setShowAnnouncements] = useState(false);
   const [annFile, setAnnFile] = useState(null);
   const [annPreview, setAnnPreview] = useState('');
   const [annError, setAnnError] = useState('');
@@ -169,6 +170,13 @@ export default function App() {
   useEffect(() => {
     if (view === 'admin' && adminConfigured === null) api('/api/admin/status').then((d) => setAdminConfigured(d.configured)).catch(() => {});
   }, [view]);
+
+  // Dashboard announcement list: refresh the admin's own church's
+  // announcements whenever the dashboard is shown, so the remove controls
+  // always reflect the current list (not a previously viewed church's).
+  useEffect(() => {
+    if (view === 'dashboard' && registrar) loadAnnouncements(registrar.id);
+  }, [view, registrar]);
 
   const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem('bpn_token') || ''}` });
 
@@ -374,18 +382,6 @@ export default function App() {
             <button className="gold-btn" onClick={() => go('join')}>Join a group <Info text="Joining needs no login — just your name, profession and the member code." /></button>
             <button className="gold-btn outline" onClick={() => setShowBenefits(true)}>The Benefits</button>
           </div>
-          {announcements.length > 0 && (
-            <section className="announcements" aria-label="Church announcements">
-              <h2>Announcements</h2>
-              {announcements.map((a) => (
-                <article key={a.id} className="announcement-card">
-                  <h3>{a.title}</h3>
-                  <p>{a.details}</p>
-                  {a.has_image && <img src={`/api/announcements/${a.id}/image`} alt="" loading="lazy" />}
-                </article>
-              ))}
-            </section>
-          )}
           <div className="carousel" aria-label="Professional groups">
             {groups.map((g) => (
               <button key={g.name} className="group-card" onClick={() => loadChats(g)}>
@@ -421,18 +417,30 @@ export default function App() {
         <main>
           <button className="back" onClick={() => go('groups')}>← Groups</button>
           <h1>{group.name}</h1>
-          <button className="gold-btn" onClick={() => go('newchat')}>Create a chat <Info text="Anyone can start a chat — no sign-in needed." /></button>
-          {announcements.length > 0 && (
-            <section className="announcements" aria-label="Church announcements">
-              <h2>Announcements</h2>
-              {announcements.map((a) => (
-                <article key={a.id} className="announcement-card">
-                  <h3>{a.title}</h3>
-                  <p>{a.details}</p>
-                  {a.has_image && <img src={`/api/announcements/${a.id}/image`} alt="" loading="lazy" />}
-                </article>
-              ))}
-            </section>
+          <div className="join-row">
+            <button className="gold-btn" onClick={() => go('newchat')}>Create a chat <Info text="Anyone can start a chat — no sign-in needed." /></button>
+            <button className="gold-btn outline" onClick={() => setShowAnnouncements(true)}>Announcements</button>
+          </div>
+          {showAnnouncements && (
+            <div className="modal-backdrop" onClick={() => setShowAnnouncements(false)}>
+              <div className="modal-card ann-modal" role="dialog" aria-modal="true" aria-label="Announcements" onClick={(e) => e.stopPropagation()}>
+                <button type="button" className="modal-close" aria-label="Close" onClick={() => setShowAnnouncements(false)}>✕</button>
+                <h2>Announcements</h2>
+                {announcements.length === 0 ? (
+                  <p className="muted">No announcements yet.</p>
+                ) : (
+                  <section className="ann-modal-list">
+                    {announcements.map((a) => (
+                      <article key={a.id} className="announcement-card">
+                        <h3>{a.title}</h3>
+                        <p>{a.details}</p>
+                        {a.has_image && <img src={`/api/announcements/${a.id}/image`} alt="" loading="lazy" />}
+                      </article>
+                    ))}
+                  </section>
+                )}
+              </div>
+            </div>
           )}
           <section className="stack">
             {chats.length === 0 && <p className="empty">No chats here yet. Start the first one.</p>}
@@ -556,7 +564,7 @@ export default function App() {
           </section>
           <section className="banner-box">
             <h2>Announcements</h2>
-            <p className="muted">Post an announcement for your church — it appears pinned above your church's chat lists, newest first.</p>
+            <p className="muted">Post an announcement for your church — members open it from the Announcements button on your church's chat page, newest first.</p>
             <form onSubmit={async (e) => {
               e.preventDefault(); setError(''); setNotice('');
               try {
@@ -565,7 +573,8 @@ export default function App() {
                 if (annFile) image_data_url = await fileToDataUrl(annFile);
                 await api(`/api/churches/${registrar.id}/announcements`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ title: f.get('title'), details: f.get('details'), image_data_url }) });
                 e.target.reset(); setAnnFile(null); setAnnPreview(''); setAnnError('');
-                setNotice('Announcement posted — it now appears above your church\'s chat lists.');
+                await loadAnnouncements(registrar.id);
+                setNotice('Announcement posted — members can open it from the Announcements button on your church\'s chat page.');
               } catch (err) { setError(err.message); }
             }}>
               <Field label="Title of the announcement" name="title" required />
@@ -590,6 +599,27 @@ export default function App() {
               )}
               <button className="gold-btn big">Post announcement</button>
             </form>
+            <h3>Your announcements</h3>
+            {announcements.length === 0 ? (
+              <p className="muted">No announcements yet.</p>
+            ) : (
+              <section className="announcements">
+                {announcements.map((a) => (
+                  <article key={a.id} className="announcement-card">
+                    <h3>{a.title}</h3>
+                    <p>{a.details}</p>
+                    {a.has_image && <img src={`/api/announcements/${a.id}/image`} alt="" loading="lazy" />}
+                    <button className="gold-btn outline" onClick={async () => {
+                      try {
+                        await api(`/api/churches/${registrar.id}/announcements/${a.id}`, { method: 'DELETE', headers: authHeaders() });
+                        await loadAnnouncements(registrar.id);
+                        setNotice('Announcement removed.');
+                      } catch (err) { setError(err.message); }
+                    }}>Remove</button>
+                  </article>
+                ))}
+              </section>
+            )}
           </section>
           <button className="muted-btn" onClick={() => { localStorage.removeItem('bpn_token'); setRegistrar(null); go('home'); }}>Log out</button>
         </main>
@@ -765,7 +795,7 @@ export default function App() {
             </article>
             <article className="how-step">
               <span className="how-num">6</span>
-              <div><h2>For church admins</h2><p>Register your church, log in as church admin, create or change the member code, view your members, and post announcements that appear above your church's chat page.</p></div>
+              <div><h2>For church admins</h2><p>Register your church, log in as church admin, create or change the member code, view your members, and post announcements that members open from the Announcements button on your church's chat page.</p></div>
             </article>
           </section>
         </main>
