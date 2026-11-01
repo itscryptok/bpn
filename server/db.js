@@ -56,6 +56,20 @@ async function createTables(client) {
       icon_variant INTEGER NOT NULL DEFAULT 1,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    -- Church announcements (church-admin posts only): title + details +
+    -- optional image stored in Postgres (same pattern as church banners,
+    -- never on local disk). Shown pinned above that church's chat lists,
+    -- newest first; never on another church's pages.
+    CREATE TABLE IF NOT EXISTS announcements (
+      id SERIAL PRIMARY KEY,
+      church_id INTEGER NOT NULL REFERENCES churches(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      details TEXT NOT NULL DEFAULT '',
+      image_data TEXT,
+      image_mime TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_announcements_church ON announcements(church_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_members_church ON members(church_id);
     CREATE INDEX IF NOT EXISTS idx_chats_church_group ON chats(church_id, group_name);
     CREATE INDEX IF NOT EXISTS idx_comments_chat ON comments(chat_id);
@@ -151,14 +165,32 @@ export async function initDb() {
     await pool.query('UPDATE churches SET background_image = $1 WHERE id = $2', [next, row.id]);
   }
 
-  // Grace Fellowship Test Church gets the unmistakably-gospel choir image
-  // as its stored backdrop (owner's request — the baptismal font did not
+  // Sample Grace Fellowship gets the unmistakably-gospel choir image as
+  // its stored backdrop (owner's request — the baptismal font did not
   // read as gospel). Runs every boot so the assignment sticks across
   // redeploys; a no-op once set, and it never touches any other church.
+  // Both the old and new names are matched so this still lands on the
+  // first boot after the rename below (when the old name is still in
+  // place) as well as on later boots (when only the new name exists).
   await pool.query(
-    `UPDATE churches SET background_image = $1 WHERE name = $2 AND background_image IS DISTINCT FROM $1`,
-    [GOSPEL_BACKGROUND, 'Grace Fellowship Test Church']
+    `UPDATE churches SET background_image = $1 WHERE name IN ($2, $3) AND background_image IS DISTINCT FROM $1`,
+    [GOSPEL_BACKGROUND, 'Sample Grace Fellowship', 'Grace Fellowship Test Church']
   );
+
+  // Owner's test-church renames (name only — SUPERSEDES the earlier
+  // "BPN Test Church" -> "Believers Love World Test" rename, which never
+  // deployed): test churches are now PREFIXED with "Sample", not suffixed
+  // with "Test". Each mapping touches ONLY the name — stored backdrops
+  // are untouched (gospel choir, lakeside chapel, and Rock City's existing
+  // image all stay), and the card monogram logic skips the "Sample"
+  // prefix so the letters land as the owner specified (G, B, R).
+  // The intermediate "Believers Love World Test" name is mapped too, so
+  // this is correct whether or not that earlier rename ever landed.
+  // No-op once renamed.
+  await pool.query(`UPDATE churches SET name = $1 WHERE name = $2`, ['Sample Grace Fellowship', 'Grace Fellowship Test Church']);
+  await pool.query(`UPDATE churches SET name = $1 WHERE name = $2`, ['Sample Believers Love World', 'BPN Test Church']);
+  await pool.query(`UPDATE churches SET name = $1 WHERE name = $2`, ['Sample Believers Love World', 'Believers Love World Test']);
+  await pool.query(`UPDATE churches SET name = $1 WHERE name = $2`, ['Sample Rock City', 'Banner Test Church']);
 
   // Seed DB-backed config (only when empty). Groups, copy and toggles live
   // here so a future admin board can edit them without touching code.
