@@ -186,7 +186,13 @@ export default function App() {
     try { await fn(new FormData(e.target)); } catch (err) { setError(err.message); }
   }
 
-  const openChurch = (c) => { setChurch(c); setUnlocked(false); setGroup(null); go('pin'); };
+  const openChurch = async (c) => {
+    // Pin-page detail: fetch the single-church payload so sample churches
+    // carry display_code; fall back to the list item if the fetch fails.
+    let detail = c;
+    try { detail = await api(`/api/churches/${c.id}`); } catch { /* keep list item */ }
+    setChurch(detail); setUnlocked(false); setGroup(null); go('pin');
+  };
 
   // Announcements are per-church: fetched for the church being viewed, so
   // they can only ever render on that church's own groups/chats pages.
@@ -358,7 +364,7 @@ export default function App() {
       {view === 'pin' && church && (
         <main className="narrow">
           <button className="back" onClick={() => go('home')}>← All churches</button>
-          <h1>{church.name}</h1>
+          <h1>{church.name}{church.display_code ? ` · Connect code: ${church.display_code}` : ''}</h1>
           <p className="muted">{church.city} <Info text="Members need the connect code from the church admin to enter this church's area." /></p>
           {!church.has_pin ? (
             <p className="alert">This church has no connect code yet — ask its church admin for the connect code.</p>
