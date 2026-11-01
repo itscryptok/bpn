@@ -268,6 +268,22 @@ app.get('/api/announcements/:id/image', async (req, res) => {
   }
 });
 
+app.delete('/api/churches/:id/announcements/:annId', authRegistrar, requireOwnChurch, async (req, res) => {
+  try {
+    // Own-church guard (requireOwnChurch) plus a church_id filter, so an
+    // admin can only ever delete their own church's announcements.
+    const { rows } = await pool.query(
+      'DELETE FROM announcements WHERE id = $1 AND church_id = $2 RETURNING id',
+      [req.params.annId, req.registrar.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Announcement not found.' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Could not remove the announcement.' });
+  }
+});
+
 app.post('/api/churches/:id/announcements', authRegistrar, requireOwnChurch, async (req, res) => {
   try {
     const { title, details, image_data_url } = req.body || {};
