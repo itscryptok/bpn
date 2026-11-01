@@ -58,8 +58,9 @@ async function createTables(client) {
     );
     -- Church announcements (church-admin posts only): title + details +
     -- optional image stored in Postgres (same pattern as church banners,
-    -- never on local disk). Shown pinned above that church's chat lists,
-    -- newest first; never on another church's pages.
+    -- never on local disk). Opened from the Announcements button on that
+    -- church's chat page (pop-up, newest first); never on another
+    -- church's pages.
     CREATE TABLE IF NOT EXISTS announcements (
       id SERIAL PRIMARY KEY,
       church_id INTEGER NOT NULL REFERENCES churches(id) ON DELETE CASCADE,
