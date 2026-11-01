@@ -8,6 +8,29 @@ const api = async (path, opts = {}) => {
   return data;
 };
 
+// Theme-matched graphic for each professional group, reused by the group
+// cards and by the chat cards of that group. (Member icons stay comment-only.)
+const GROUP_IMAGES = {
+  'Healthcare': '/img/group-healthcare.webp',
+  'Engineering': '/img/group-engineering.webp',
+  'Business': '/img/group-business.webp',
+  'IT & Technology': '/img/group-it-technology.webp',
+  'Education': '/img/group-education.webp',
+  'Finance': '/img/group-finance.webp',
+  'Construction': '/img/group-construction.webp',
+  'Legal': '/img/group-legal.webp',
+  'Creative Arts': '/img/group-creative-arts.webp',
+  'Manufacturing': '/img/group-manufacturing.webp',
+  'Hospitality': '/img/group-hospitality.webp',
+  'Environment & Sustainability': '/img/group-environment.webp',
+  'Government & Public Service': '/img/group-government.webp',
+  'Nonprofit & Social Impact': '/img/group-nonprofit.webp'
+};
+
+// Safety net for churches that predate stored backgrounds; the server
+// backfills real values, so this should rarely be seen.
+const FALLBACK_CHURCH_BG = '/img/church-01.webp';
+
 function relTime(iso) {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (s < 60) return 'now';
@@ -159,9 +182,9 @@ export default function App() {
             </section>
           ) : (
             <section className="church-grid">
-              {churches.map((c, i) => (
+              {churches.map((c) => (
                 <button key={c.id} className="church-card" onClick={() => openChurch(c)}>
-                  <span className={`church-banner b${i % 6}`}>{c.name.trim().charAt(0).toUpperCase()}</span>
+                  <span className="church-banner"><img src={c.background_image || FALLBACK_CHURCH_BG} alt="" loading="lazy" /></span>
                   <span className="church-name">{c.name}</span>
                   <span className="church-meta">{c.city || '—'} · {c.member_count} member{c.member_count === 1 ? '' : 's'}</span>
                   <span className="church-cta">Enter with member code →</span>
@@ -251,8 +274,8 @@ export default function App() {
           )}
           <div className="carousel" aria-label="Professional groups">
             {groups.map((g) => (
-              <button key={g.name} className="group-card" style={{ '--gc': g.color }} onClick={() => loadChats(g)}>
-                <span className="group-emoji">{g.emoji}</span>
+              <button key={g.name} className="group-card" onClick={() => loadChats(g)}>
+                <span className="group-img"><img src={GROUP_IMAGES[g.name]} alt="" loading="lazy" /></span>
                 <span className="group-name">{g.name}</span>
                 <span className="group-cta">Open chats →</span>
               </button>
@@ -283,12 +306,13 @@ export default function App() {
       {view === 'chats' && group && (
         <main>
           <button className="back" onClick={() => go('groups')}>← Groups</button>
-          <h1>{group.emoji} {group.name}</h1>
+          <h1>{group.name}</h1>
           <button className="gold-btn" onClick={() => go('newchat')}>Create a chat <Info text="Anyone can start a chat — no sign-in needed." /></button>
           <section className="stack">
             {chats.length === 0 && <p className="empty">No chats here yet. Start the first one.</p>}
             {chats.map((c) => (
               <button key={c.id} className="chat-card" onClick={() => loadChat(c)}>
+                <span className="chat-card-img"><img src={GROUP_IMAGES[group.name]} alt="" loading="lazy" /></span>
                 <span className="chat-title">{c.title}</span>
                 <span className="chat-meta">{c.comment_count} comment{c.comment_count === 1 ? '' : 's'} · {relTime(c.created_at)} ago</span>
               </button>
@@ -345,7 +369,7 @@ export default function App() {
           <p className="muted">Signed in as {registrar.registrar_name} ({registrar.registrar_email})</p>
           <section className="overlap-stack" aria-label="Your churches">
             <article className="overlap-card">
-              <span className="church-banner b0">{registrar.name.trim().charAt(0).toUpperCase()}</span>
+              <span className="church-banner"><img src={registrar.background_image || FALLBACK_CHURCH_BG} alt="" /></span>
               <h2>{registrar.name}</h2>
               <p className="muted">{registrar.city}</p>
               <form onSubmit={(e) => submit(e, async (f) => {
