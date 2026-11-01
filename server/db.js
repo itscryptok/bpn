@@ -90,6 +90,14 @@ async function createTables(client) {
     ALTER TABLE churches ADD COLUMN IF NOT EXISTS banner_mime TEXT;
     ALTER TABLE members ADD COLUMN IF NOT EXISTS best_time TEXT;
     ALTER TABLE members ADD COLUMN IF NOT EXISTS interesting_facts TEXT;
+    -- Sample-church flag (NOT name-based — a name prefix would leak a real
+    -- church's code if it happened to start with "Sample", and a renamed
+    -- sample would silently lose its display). Exactly the three sample
+    -- churches (ids 1, 2, 3, verified against the live data) are flagged;
+    -- every other church stays false. Idempotent: re-running on boot
+    -- preserves the invariant, and no UI ever sets this flag.
+    ALTER TABLE churches ADD COLUMN IF NOT EXISTS is_sample BOOLEAN NOT NULL DEFAULT FALSE;
+    UPDATE churches SET is_sample = (id IN (1, 2, 3));
   `);
 }
 
