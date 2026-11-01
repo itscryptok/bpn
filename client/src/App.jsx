@@ -29,7 +29,47 @@ const GROUP_IMAGES = {
 
 // Safety net for churches that predate stored backgrounds; the server
 // backfills real values, so this should rarely be seen.
-const FALLBACK_CHURCH_BG = '/img/church-01.webp';
+const FALLBACK_CHURCH_BG = '/img/church2-01.webp';
+
+// First letter of the first word of a church name, for the monogram tile.
+function firstLetter(name) {
+  const first = String(name || '').trim().split(/\s+/)[0] || '';
+  return first ? first[0].toUpperCase() : 'B';
+}
+
+// Church card visual: the registrar's uploaded banner wins; otherwise a
+// monogram tile — the church's first letter over its distinct stored
+// backdrop image. (Member icons stay comment-only and are never used here.)
+function ChurchVisual({ church }) {
+  if (church.has_banner) {
+    return (<span className="church-banner"><img src={`/api/churches/${church.id}/banner`} alt="" loading="lazy" /></span>);
+  }
+  return (
+    <span className="church-banner monogram">
+      <img src={church.background_image || FALLBACK_CHURCH_BG} alt="" loading="lazy" />
+      <span className="monogram-letter" aria-hidden="true">{firstLetter(church.name)}</span>
+    </span>
+  );
+}
+
+// Registrar banner uploads: JPG/PNG/WebP only, 5MB cap, checked in the
+// browser before anything is sent (the server re-checks both).
+const BANNER_MAX_BYTES = 5 * 1024 * 1024;
+const BANNER_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+function bannerFileError(file) {
+  if (!file) return '';
+  if (!BANNER_TYPES.includes(file.type)) return 'Please choose a JPG, PNG or WebP image.';
+  if (file.size > BANNER_MAX_BYTES) return 'That image is over 5MB — please choose a smaller one.';
+  return '';
+}
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(new Error('Could not read that image.'));
+    r.readAsDataURL(file);
+  });
+}
 
 function relTime(iso) {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -77,6 +117,12 @@ export default function App() {
   const [adminConfigured, setAdminConfigured] = useState(null);
   const [showBenefits, setShowBenefits] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [bannerFile, setBannerFile] = useState(null);
+  const [bannerPreview, setBannerPreview] = useState('');
+  const [bannerError, setBannerError] = useState('');
+  const [dashBannerFile, setDashBannerFile] = useState(null);
+  const [dashBannerPreview, setDashBannerPreview] = useState('');
+  const [dashBannerMsg, setDashBannerMsg] = useState('');
   const commentBox = useRef(null);
 
   const go = (v) => {
@@ -139,13 +185,8 @@ export default function App() {
           <span><b>BPN</b> Believers Professional Network</span>
         </button>
         <nav>
-          {registrar ? (
+          {registrar && (
             <button onClick={() => go('dashboard')}>My churches</button>
-          ) : (
-            <>
-              <button onClick={() => go('login')}>Registrar login</button>
-              <button className="gold-btn" onClick={() => go('register')}>Register your church</button>
-            </>
           )}
         </nav>
         <button type="button" className="burger-btn" aria-label="Open menu" aria-expanded={showMenu} onClick={() => setShowMenu(true)}>☰</button>
@@ -158,6 +199,7 @@ export default function App() {
             <button type="button" onClick={() => { setShowMenu(false); go('register'); }}>Register your church</button>
             <button type="button" onClick={() => { setShowMenu(false); setShowBenefits(true); }}>The Benefits</button>
             <a href="https://cryptok.online" target="_blank" rel="noreferrer" onClick={() => setShowMenu(false)}>Build a professional webapp ↗</a>
+            <button type="button" onClick={() => { setShowMenu(false); go('login'); }}>Registrar login</button>
           </div>
         </div>
       )}
@@ -186,6 +228,7 @@ export default function App() {
         <main>
           <img className="home-banner" src="/img/banner.jpg" alt="Believers Professional Network — Stronger Together. Connect, Collaborate, Grow, Make an impact." />
           <h1 className="find-heading">Find your church group</h1>
+          <p className="find-tagline">Connect. Collaborate. Make impact.</p>
 
           <section className="search-zone">
             <label>Find your church</label>
@@ -207,7 +250,7 @@ export default function App() {
             <section className="church-grid">
               {churches.map((c) => (
                 <button key={c.id} className="church-card" onClick={() => openChurch(c)}>
-                  <span className="church-banner"><img src={c.background_image || FALLBACK_CHURCH_BG} alt="" loading="lazy" /></span>
+                  <ChurchVisual church={c} />
                   <span className="church-name">{c.name}</span>
                   <span className="church-meta">{c.city || '—'} · {c.member_count} member{c.member_count === 1 ? '' : 's'}</span>
                   <span className="church-cta">Enter with member code →</span>
@@ -224,7 +267,9 @@ export default function App() {
           <h1>Register your church</h1>
           <p className="muted">You become this church's registrar. <Info text="The registrar is the person who manages the church on BPN: they set the member code and see the member list." /></p>
           <form onSubmit={(e) => submit(e, async (f) => {
-            const d = await api('/api/churches', { method: 'POST', body: JSON.stringify(Object.fromEntries(f)) });
+            const payload = Object.fromEntries(f);
+            if (bannerFile) payload.banner_data_url = await fileToDataUrl(bannerFile);
+            const d = await api('/api/churches', { method: 'POST', body: JSON.stringify(payload) });
             localStorage.setItem('bpn_token', d.token); setRegistrar(d.church);
             setNotice('Church registered. Now set your 4-character member code.'); go('dashboard');
           })}>
@@ -233,6 +278,24 @@ export default function App() {
             <Field label="Your name (registrar)" name="registrar_name" required />
             <Field label="Your email" name="registrar_email" type="email" required />
             <Field label="Password (6+ characters)" name="password" type="password" required minLength={6} />
+            <label className="field">
+              <span>Upload an image banner for your church (optional)</span>
+              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => {
+                const file = e.target.files[0] || null;
+                const err = bannerFileError(file);
+                setBannerError(err);
+                if (err || !file) { setBannerFile(null); setBannerPreview(''); return; }
+                setBannerFile(file);
+                setBannerPreview(URL.createObjectURL(file));
+              }} />
+            </label>
+            {bannerError && <p className="alert err">{bannerError}</p>}
+            {bannerPreview && (
+              <div className="banner-preview">
+                <img src={bannerPreview} alt="Banner preview" />
+                <p>Banner ready: {bannerFile.name} ({Math.round(bannerFile.size / 1024)} KB) — it will be shown on your church card and on your professional groups page.</p>
+              </div>
+            )}
             <button className="gold-btn big">Register church</button>
           </form>
         </main>
@@ -274,6 +337,11 @@ export default function App() {
       {view === 'groups' && church && unlocked && (
         <main>
           <button className="back" onClick={() => go('home')}>← All churches</button>
+          <span className="groups-header-banner">
+            {church.has_banner
+              ? <img src={`/api/churches/${church.id}/banner`} alt="" />
+              : <img src={church.background_image || FALLBACK_CHURCH_BG} alt="" />}
+          </span>
           <h1>{church.name} <span className="muted">· Professional groups</span></h1>
           <div className="join-row">
             <button className="gold-btn" onClick={() => go('join')}>Join a group <Info text="Joining needs no login — just your name, profession and the member code." /></button>
@@ -376,7 +444,7 @@ export default function App() {
           <p className="muted">Signed in as {registrar.registrar_name} ({registrar.registrar_email})</p>
           <section className="overlap-stack" aria-label="Your churches">
             <article className="overlap-card">
-              <span className="church-banner"><img src={registrar.background_image || FALLBACK_CHURCH_BG} alt="" /></span>
+              <ChurchVisual church={registrar} />
               <h2>{registrar.name}</h2>
               <p className="muted">{registrar.city}</p>
               <form onSubmit={(e) => submit(e, async (f) => {
@@ -388,6 +456,52 @@ export default function App() {
               </form>
               <button className="gold-btn outline" onClick={loadMembers}>View your members</button>
             </article>
+          </section>
+          <section className="banner-box">
+            <h2>Church banner</h2>
+            {registrar.has_banner && !dashBannerPreview && (
+              <div className="banner-preview">
+                <img src={`/api/churches/${registrar.id}/banner`} alt="Current church banner" />
+                <p>Current banner — shown on your church card and groups page.</p>
+              </div>
+            )}
+            <label className="field">
+              <span>{registrar.has_banner ? 'Replace the banner (optional)' : 'Upload an image banner for your church (optional)'}</span>
+              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => {
+                const file = e.target.files[0] || null;
+                const err = bannerFileError(file);
+                setDashBannerMsg(err);
+                if (err || !file) { setDashBannerFile(null); setDashBannerPreview(''); return; }
+                setDashBannerFile(file);
+                setDashBannerPreview(URL.createObjectURL(file));
+              }} />
+            </label>
+            {dashBannerPreview && (
+              <div className="banner-preview">
+                <img src={dashBannerPreview} alt="New banner preview" />
+                <p>New banner ready: {dashBannerFile.name} ({Math.round(dashBannerFile.size / 1024)} KB).</p>
+              </div>
+            )}
+            <div className="join-row">
+              <button className="gold-btn" disabled={!dashBannerFile} onClick={async () => {
+                try {
+                  const dataUrl = await fileToDataUrl(dashBannerFile);
+                  await api(`/api/churches/${registrar.id}/banner`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ banner_data_url: dataUrl }) });
+                  const me = await api('/api/me', { headers: authHeaders() }); setRegistrar(me.church);
+                  setDashBannerFile(null); setDashBannerPreview(''); setDashBannerMsg('Banner saved.');
+                } catch (err) { setDashBannerMsg(err.message); }
+              }}>{registrar.has_banner ? 'Replace banner' : 'Upload banner'}</button>
+              {registrar.has_banner && (
+                <button className="gold-btn outline" onClick={async () => {
+                  try {
+                    await api(`/api/churches/${registrar.id}/banner`, { method: 'DELETE', headers: authHeaders() });
+                    const me = await api('/api/me', { headers: authHeaders() }); setRegistrar(me.church);
+                    setDashBannerMsg('Banner removed — your church card now shows its default letter tile.');
+                  } catch (err) { setDashBannerMsg(err.message); }
+                }}>Remove banner</button>
+              )}
+            </div>
+            {dashBannerMsg && <p className="muted">{dashBannerMsg}</p>}
           </section>
           <button className="muted-btn" onClick={() => { localStorage.removeItem('bpn_token'); setRegistrar(null); go('home'); }}>Log out</button>
         </main>
