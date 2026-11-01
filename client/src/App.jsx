@@ -101,10 +101,10 @@ function Info({ text }) {
   );
 }
 
-function Field({ label, ...props }) {
+function Field({ label, info, ...props }) {
   return (
     <label className="field">
-      <span>{label}</span>
+      <span>{label} {info && <Info text={info} />}</span>
       <input {...props} />
     </label>
   );
@@ -272,7 +272,7 @@ export default function App() {
               value={query} onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by church name or city…" aria-label="Search churches"
             />
-            <Info text="Type your church name. Tap its card, then enter the 4-character code from the church admin." />
+            <Info text="Type your church name. Tap its card, then enter the connect code from the church admin." />
           </section>
 
           {churches.length === 0 ? (
@@ -289,7 +289,7 @@ export default function App() {
                   <ChurchVisual church={c} />
                   <span className="church-name">{c.name}</span>
                   <span className="church-meta">{c.city || '—'} · {c.member_count} member{c.member_count === 1 ? '' : 's'}</span>
-                  <span className="church-cta">Enter with member code →</span>
+                  <span className="church-cta">Enter with connect code →</span>
                 </button>
               ))}
             </section>
@@ -300,19 +300,21 @@ export default function App() {
       {view === 'register' && (
         <main className="narrow">
           <h1>Register your church</h1>
-          <p className="muted">You become the church admin for this church. <Info text="The church admin is the person who manages the church on BPN: they set the member code and see the member list." /></p>
+          <p className="muted">You become the church admin for this church. <Info text="The church admin is the person who manages the church on BPN: they set the connect code and see the member list." /></p>
           <form onSubmit={(e) => submit(e, async (f) => {
             const payload = Object.fromEntries(f);
             if (bannerFile) payload.banner_data_url = await fileToDataUrl(bannerFile);
             const d = await api('/api/churches', { method: 'POST', body: JSON.stringify(payload) });
             localStorage.setItem('bpn_token', d.token); setRegistrar(d.church); loadChurches();
-            setNotice('Church registered. Now set your 4-character member code.'); go('dashboard');
+            setNotice('Church registered — share your connect code with your members.'); go('dashboard');
           })}>
             <Field label="Church name" name="name" required />
             <Field label="City" name="city" />
             <Field label="Your name (church admin)" name="registrar_name" required />
             <Field label="Your email" name="registrar_email" type="email" required />
             <Field label="Password (6+ characters)" name="password" type="password" required minLength={6} />
+            <Field label="Connect code (4 letters or numbers)" name="pin" required maxLength={4} placeholder="e.g. A3K9"
+              info="Give this code to your members — they will enter it as their connect code when they get on this platform to unlock your church's groups." />
             <label className="field">
               <span>Upload an image banner for your church (optional)</span>
               <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => {
@@ -354,15 +356,15 @@ export default function App() {
         <main className="narrow">
           <button className="back" onClick={() => go('home')}>← All churches</button>
           <h1>{church.name}</h1>
-          <p className="muted">{church.city} <Info text="Members need the code from the church admin to enter this church's area." /></p>
+          <p className="muted">{church.city} <Info text="Members need the connect code from the church admin to enter this church's area." /></p>
           {!church.has_pin ? (
-            <p className="alert err">This church has no member code yet — ask its church admin to set one.</p>
+            <p className="alert">This church has no connect code yet — ask its church admin for the connect code.</p>
           ) : (
             <form onSubmit={(e) => submit(e, async (f) => {
               await api(`/api/churches/${church.id}/unlock`, { method: 'POST', body: JSON.stringify({ pin: f.get('pin') }) });
               setUnlocked(true); await loadAnnouncements(church.id); go('groups');
             })}>
-              <Field label="Member code (4 letters or numbers)" name="pin" required maxLength={4} autoFocus placeholder="e.g. A3K9" />
+              <Field label="Connect code (4 letters or numbers)" name="pin" required maxLength={4} autoFocus placeholder="e.g. A3K9" />
               <button className="gold-btn big">Enter</button>
             </form>
           )}
@@ -379,7 +381,7 @@ export default function App() {
           </span>
           <h1>{church.name} <span className="muted">· Professional groups</span></h1>
           <div className="join-row">
-            <button className="gold-btn" onClick={() => go('join')}>Join a group <Info text="Joining needs no login — just your name, profession and the member code." /></button>
+            <button className="gold-btn" onClick={() => go('join')}>Join a group <Info text="Joining needs no login — just your name, profession and the connect code." /></button>
             <button className="gold-btn outline" onClick={() => setShowBenefits(true)}>The Benefits</button>
           </div>
           <div className="carousel" aria-label="Professional groups">
@@ -407,7 +409,7 @@ export default function App() {
             <Field label="Your name" name="name" required />
             <Field label="Profession" name="profession" />
             <Field label="Contact (phone or email)" name="contact" />
-            <Field label="Member code" name="pin" required maxLength={4} />
+            <Field label="Connect code" name="pin" required maxLength={4} />
             <button className="gold-btn big">Join a group</button>
           </form>
         </main>
@@ -506,11 +508,14 @@ export default function App() {
               <ChurchVisual church={registrar} />
               <h2>{registrar.name}</h2>
               <p className="muted">{registrar.city}</p>
+              {!registrar.has_pin && (
+                <p className="alert">Your church has no connect code yet — set your connect code below so members can enter your church's area.</p>
+              )}
               <form onSubmit={(e) => submit(e, async (f) => {
                 await api(`/api/churches/${registrar.id}/pin`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ pin: f.get('pin') }) });
-                setNotice('Member code saved. Share it with your members.'); setRegistrar({ ...registrar, has_pin: true });
+                setNotice('Connect code saved. Share it with your members.'); setRegistrar({ ...registrar, has_pin: true });
               })}>
-                <Field label="Member code (4 letters or numbers)" name="pin" required maxLength={4} placeholder={registrar.has_pin ? 'Change the code…' : 'Create the code…'} />
+                <Field label="Connect code (4 letters or numbers)" name="pin" required maxLength={4} placeholder={registrar.has_pin ? 'Change the code…' : 'Create the code…'} />
                 <button className="gold-btn">{registrar.has_pin ? 'Change code' : 'Create code'}</button>
               </form>
               <button className="gold-btn outline" onClick={loadMembers}>View your members</button>
@@ -654,7 +659,7 @@ export default function App() {
             }}>Export members as CSV</button>
           </section>
           <section className="stack">
-            {members.length === 0 && <p className="empty">No members yet. Share your member code so people can join.</p>}
+            {members.length === 0 && <p className="empty">No members yet. Share your connect code so people can join.</p>}
             {members.map((m) => (
               <article key={m.id} className="member-card">
                 <b>{m.name}</b><span>{m.profession}</span><span>{m.contact}</span><span className="muted">{new Date(m.created_at).toLocaleString()}</span>
@@ -726,14 +731,14 @@ export default function App() {
           <p>You do not need an account to browse churches and professional groups, create a chat, or comment. Creating a chat or commenting needs no sign-in at all.</p>
           <h2>Comments are anonymous</h2>
           <p>Comments show only the word “member” with a colorful person icon. No real names appear on comments, and a comment is never tied to a named account.</p>
-          <h2>Member codes</h2>
-          <p>Each church has a 4-character member code set by its church admin. You need that code — given to you by your church admin — to enter a church's area and to join its member list. Keep your church's code for its members.</p>
+          <h2>Connect codes</h2>
+          <p>Each church has a 4-character connect code, set by its church admin when the church is registered (and changeable later from the church admin dashboard). You need that code — given to you by your church admin — to enter a church's area and to join its member list. Keep your church's code for its members.</p>
           <h2>Joining a member list</h2>
           <p>Joining asks for your name, profession, and contact. Those details go to your church's member list, which your church admin can view. A church admin may link the list to a Google Sheet, and can export it as a CSV file.</p>
           <h2>Church banners</h2>
           <p>A church admin may upload a banner image for their church. It is shown on the church's card and on the church's professional groups page. A church admin can replace or remove it at any time.</p>
           <h2>Church admin responsibilities</h2>
-          <p>The church admin manages their church on BPN: they set and change the member code, view the member list, and manage the church banner. The site administrator manages the app itself.</p>
+          <p>The church admin manages their church on BPN: they set and change the connect code, view the member list, and manage the church banner. The site administrator manages the app itself.</p>
           <h2>Use the network respectfully</h2>
           <p>Use BPN in a way that fits a professional network built on godly principles: be encouraging, share genuine opportunities and information, and respect other members.</p>
           <h2>Availability</h2>
@@ -756,8 +761,8 @@ export default function App() {
           <p>Church admin and admin sign-in tokens are stored in your browser's local storage so you stay signed in. Logging out removes them.</p>
           <h2>Member lists and Google Sheets</h2>
           <p>Member details are visible to your church admin through the member list. If the church admin links a Google Sheet, the list can be viewed there, and the church admin can also export it as a CSV file. Automatic syncing to a Sheet only runs when a service account is connected; otherwise the church admin imports the CSV manually.</p>
-          <h2>Member codes</h2>
-          <p>Each church's 4-character member code is set by its church admin and is not public. It is needed to enter a church's area and to join its member list.</p>
+          <h2>Connect codes</h2>
+          <p>Each church's 4-character connect code is set by its church admin when the church is registered (and can be changed later) and is not public. It is needed to enter a church's area and to join its member list.</p>
           <h2>Church banners</h2>
           <p>A banner image uploaded by a church admin is stored in the app's database and shown on that church's card and professional groups page. Removing it returns the card to its default letter tile.</p>
           <h2>Questions about your data</h2>
@@ -779,7 +784,7 @@ export default function App() {
             </article>
             <article className="how-step how-key">
               <span className="how-num">2</span>
-              <div><h2>Get your unique code from your church admin</h2><p>Each church has its own 4-character member code — and only the church admin can give it to you. This code is the key to your church's area on BPN.</p></div>
+              <div><h2>Get your unique connect code from your church admin</h2><p>Each church has its own 4-character connect code — and only the church admin can give it to you. This code is the key to your church's area on BPN.</p></div>
             </article>
             <article className="how-step">
               <span className="how-num">3</span>
@@ -795,7 +800,7 @@ export default function App() {
             </article>
             <article className="how-step">
               <span className="how-num">6</span>
-              <div><h2>For church admins</h2><p>Register your church, log in as church admin, create or change the member code, view your members, and post announcements that members open from the Announcements button on your church's chat page.</p></div>
+              <div><h2>For church admins</h2><p>Register your church, log in as church admin, create or change the connect code, view your members, and post announcements that members open from the Announcements button on your church's chat page.</p></div>
             </article>
           </section>
         </main>
