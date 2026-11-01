@@ -331,11 +331,11 @@ app.post('/api/churches/:id/members', async (req, res) => {
     if (!church.pin || String(req.body?.pin || '').toUpperCase() !== church.pin.toUpperCase()) {
       return res.status(403).json({ error: 'A correct connect code is required to join.' });
     }
-    const { name, profession, contact } = req.body || {};
+    const { name, profession, contact, best_time, interesting_facts } = req.body || {};
     if (!name?.trim()) return res.status(400).json({ error: 'Please add your name.' });
     const m = await pool.query(
-      `INSERT INTO members (church_id, name, profession, contact) VALUES ($1, $2, $3, $4) RETURNING *`,
-      [church.id, name.trim(), (profession || '').trim(), (contact || '').trim()]
+      `INSERT INTO members (church_id, name, profession, contact, best_time, interesting_facts) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [church.id, name.trim(), (profession || '').trim(), (contact || '').trim(), (best_time || '').trim(), (interesting_facts || '').trim()]
     );
     const member = m.rows[0];
     // Fire-and-forget Sheets append (gated on service-account key + sheet link).
@@ -432,7 +432,7 @@ app.post('/api/churches/:id/sheet', authRegistrar, requireOwnChurch, async (req,
 app.get('/api/churches/:id/members.csv', authRegistrar, requireOwnChurch, async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM members WHERE church_id = $1 ORDER BY created_at ASC', [req.registrar.id]);
   const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const csv = ['Name,Profession,Contact,Joined', ...rows.map((m) => [m.name, m.profession, m.contact, m.created_at].map(esc).join(','))].join('\n');
+  const csv = ['Name,Profession,Contact,Best time to contact,Interesting facts,Joined', ...rows.map((m) => [m.name, m.profession, m.contact, m.best_time, m.interesting_facts, m.created_at].map(esc).join(','))].join('\n');
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', 'attachment; filename="bpn-members.csv"');
   res.send(csv);
