@@ -3,13 +3,16 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
-import { pool, initDb, getSetting, randomChurchBackground } from './db.js';
+import { pool, initDb, getSetting, pickDistinctBackground } from './db.js';
 import { signToken, verifyToken, signAdminToken, verifyAdminToken } from './auth.js';
 import { appendMemberToSheet } from './sheets.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-app.use(express.json({ limit: '200kb' }));
+// 8MB (not 200KB): registrar banner uploads arrive as base64 data URLs, and
+// a 5MB image inflates to ~6.7MB of base64. The 5MB cap itself is enforced
+// per-upload in parseBannerDataUrl below.
+app.use(express.json({ limit: '8mb' }));
 
 const PIN_RE = /^[A-Za-z0-9]{4}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -31,8 +34,23 @@ function publicChurch(row) {
   return {
     id: row.id, name: row.name, city: row.city,
     has_pin: !!row.pin, background_image: row.background_image || null,
+    has_banner: !!row.banner_data,
     created_at: row.created_at
   };
+}
+
+// Registrar banner uploads: data URLs only (jpg/png/webp), 5MB cap on the
+// decoded bytes. Returns normalized { mime, base64 } or throws a 400-ready
+// error. Banner bytes live in Postgres (banner_data), never on disk.
+const BANNER_MAX_BYTES = 5 * 1024 * 1024;
+const BANNER_MIMES = ['image/jpeg', 'image/png', 'image/webp'];
+function parseBannerDataUrl(value) {
+  if (typeof value !== 'string') throw new Error('Banner must be an image upload.');
+  const m = value.match(/^data:(image\/[a-z]+);base64,([A-Za-z0-9+/=\r\n]+)$/);
+  if (!m || !BANNER_MIMES.includes(m[1])) throw new Error('Banner must be a JPG, PNG or WebP image.');
+  const buf = Buffer.from(m[2], 'base64');
+  if (!buf.length || buf.length > BANNER_MAX_BYTES) throw new Error('Banner must be 5MB or smaller.');
+  return { mime: m[1], base64: buf.toString('base64') };
 }
 
 async function authRegistrar(req, res, next) {
@@ -85,15 +103,22 @@ app.get('/api/churches', async (req, res) => {
 
 app.post('/api/churches', async (req, res) => {
   try {
-    const { name, city, registrar_name, registrar_email, password } = req.body || {};
+    const { name, city, registrar_name, registrar_email, password, banner_data_url } = req.body || {};
     if (!name?.trim() || !registrar_name?.trim() || !EMAIL_RE.test(registrar_email || '') || !password || password.length < 6) {
       return res.status(400).json({ error: 'Church name, registrar name, a valid email and a password of 6+ characters are required.' });
     }
+    let banner = null;
+    if (banner_data_url) {
+      try { banner = parseBannerDataUrl(banner_data_url); }
+      catch (err) { return res.status(400).json({ error: err.message }); }
+    }
     const hash = await bcrypt.hash(password, 10);
+    const { rows: existing } = await pool.query('SELECT background_image FROM churches');
     const { rows } = await pool.query(
-      `INSERT INTO churches (name, city, registrar_name, registrar_email, password_hash, background_image)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [name.trim(), (city || '').trim(), registrar_name.trim(), registrar_email.trim().toLowerCase(), hash, randomChurchBackground()]
+      `INSERT INTO churches (name, city, registrar_name, registrar_email, password_hash, background_image, banner_data, banner_mime)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [name.trim(), (city || '').trim(), registrar_name.trim(), registrar_email.trim().toLowerCase(), hash,
+       pickDistinctBackground(existing.map((r) => r.background_image)), banner?.base64 || null, banner?.mime || null]
     );
     const church = rows[0];
     res.status(201).json({ church: publicChurch(church), token: signToken(church.id) });
@@ -101,6 +126,21 @@ app.post('/api/churches', async (req, res) => {
     if (err.code === '23505') return res.status(409).json({ error: 'That registrar email is already registered.' });
     console.error(err);
     res.status(500).json({ error: 'Registration failed. Please try again.' });
+  }
+});
+
+// Public: serve a church's uploaded banner (stored in Postgres). Churches
+// without one get 404 — the UI then shows the default letter tile.
+app.get('/api/churches/:id/banner', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT banner_data, banner_mime FROM churches WHERE id = $1', [req.params.id]);
+    if (!rows.length || !rows[0].banner_data) return res.status(404).json({ error: 'This church has no banner image.' });
+    res.setHeader('Content-Type', rows[0].banner_mime || 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(Buffer.from(rows[0].banner_data, 'base64'));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Could not load banner.' });
   }
 });
 
@@ -129,6 +169,32 @@ app.post('/api/churches/:id/pin', authRegistrar, requireOwnChurch, async (req, r
   if (!PIN_RE.test(pin || '')) return res.status(400).json({ error: 'PIN must be exactly 4 letters or numbers.' });
   await pool.query('UPDATE churches SET pin = $1 WHERE id = $2', [pin, req.registrar.id]);
   res.json({ ok: true });
+});
+
+// Registrar: replace the church banner (upload) or remove it (falls back
+// to the default letter tile). Own church only.
+app.post('/api/churches/:id/banner', authRegistrar, requireOwnChurch, async (req, res) => {
+  try {
+    let banner;
+    try { banner = parseBannerDataUrl(req.body?.banner_data_url); }
+    catch (err) { return res.status(400).json({ error: err.message }); }
+    await pool.query('UPDATE churches SET banner_data = $1, banner_mime = $2 WHERE id = $3',
+      [banner.base64, banner.mime, req.registrar.id]);
+    res.json({ ok: true, has_banner: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Could not save banner.' });
+  }
+});
+
+app.delete('/api/churches/:id/banner', authRegistrar, requireOwnChurch, async (req, res) => {
+  try {
+    await pool.query('UPDATE churches SET banner_data = NULL, banner_mime = NULL WHERE id = $1', [req.registrar.id]);
+    res.json({ ok: true, has_banner: false });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Could not remove banner.' });
+  }
 });
 
 // Public: check a PIN to unlock a church area (never reveals the PIN).
