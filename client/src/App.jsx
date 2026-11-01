@@ -666,6 +666,7 @@ export default function App() {
           <button type="button" onClick={() => go('terms')}>Terms of Use</button>
           <button type="button" onClick={() => go('privacy')}>Privacy</button>
         </nav>
+        <p className="footer-copy">© 2026 Believers Professional Network. A product of <a href="https://cryptok.online" target="_blank" rel="noreferrer">Cryptok Solutions</a>.</p>
       </footer>
     </div>
   );
