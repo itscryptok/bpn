@@ -229,6 +229,7 @@ export default function App() {
           <img className="home-banner" src="/img/banner.jpg" alt="Believers Professional Network — Stronger Together. Connect, Collaborate, Grow, Make an impact." />
           <h1 className="find-heading">Find your church group</h1>
           <p className="find-tagline">Connect. Collaborate. Make impact.</p>
+          <p className="find-subline">no sign-up needed</p>
 
           <section className="search-zone">
             <label>Find your church</label>
