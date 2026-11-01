@@ -54,7 +54,7 @@ export async function appendMemberToSheet({ sheetUrl, member }) {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          values: [[member.name, member.profession, member.contact, member.created_at]]
+          values: [[member.name, member.profession, member.contact, member.best_time, member.interesting_facts, member.created_at]]
         })
       }
     );
