@@ -384,7 +384,7 @@ export default function App() {
           </span>
           <h1>{church.name} <span className="muted">· Professional groups</span></h1>
           <div className="join-row">
-            <button className="gold-btn" onClick={() => go('join')}>Join a group <Info text="Joining needs no login — just your name, profession and the connect code." /></button>
+            <button className="gold-btn join-cta" onClick={() => go('join')}>Join a group <Info text="Joining needs no login — just your name, profession and the connect code." /></button>
             <button className="gold-btn outline" onClick={() => setShowBenefits(true)}>The Benefits</button>
           </div>
           <div className="carousel" aria-label="Professional groups">
@@ -413,6 +413,8 @@ export default function App() {
             <Field label="Profession" name="profession" />
             <Field label="Contact (phone or email)" name="contact" />
             <Field label="Connect code" name="pin" required maxLength={4} />
+            <Field label="Best time to contact" name="best_time" />
+            <Field label="Any interesting facts about you?" name="interesting_facts" />
             <button className="gold-btn big">Join a group</button>
           </form>
         </main>
@@ -425,7 +427,7 @@ export default function App() {
           <div className="join-row">
             <button className="gold-btn" onClick={() => go('newchat')}>Create a chat <Info text="Anyone can start a chat — no sign-in needed." /></button>
             <button className="gold-btn outline" onClick={() => setShowAnnouncements(true)}>Announcements</button>
-            <button className="gold-btn" onClick={() => go('join')}>Join this group</button>
+            <button className="gold-btn join-cta" onClick={() => go('join')}>Join this group</button>
           </div>
           {showAnnouncements && (
             <div className="modal-backdrop" onClick={() => setShowAnnouncements(false)}>
@@ -666,7 +668,7 @@ export default function App() {
             {members.length === 0 && <p className="empty">No members yet. Share your connect code so people can join.</p>}
             {members.map((m) => (
               <article key={m.id} className="member-card">
-                <b>{m.name}</b><span>{m.profession}</span><span>{m.contact}</span><span className="muted">{new Date(m.created_at).toLocaleString()}</span>
+                <b>{m.name}</b><span>{m.profession}</span><span>{m.contact}</span>{m.best_time && <span>Best time: {m.best_time}</span>}{m.interesting_facts && <span>{m.interesting_facts}</span>}<span className="muted">{new Date(m.created_at).toLocaleString()}</span>
               </article>
             ))}
           </section>
@@ -754,7 +756,7 @@ export default function App() {
           <h2>Connect codes</h2>
           <p>Each church has a 4-character connect code, set by its church admin when the church is registered (and changeable later from the church admin dashboard). You need that code — given to you by your church admin — to enter a church's area and to join its member list. Keep your church's code for its members.</p>
           <h2>Joining a member list</h2>
-          <p>Joining asks for your name, profession, and contact. Those details go to your church's member list, which your church admin can view. A church admin may link the list to a Google Sheet, and can export it as a CSV file.</p>
+          <p>Joining asks for your name, profession, and contact, plus optionally your best time to contact and any interesting facts about you. Those details go to your church's member list, which your church admin can view. A church admin may link the list to a Google Sheet, and can export it as a CSV file.</p>
           <h2>Church banners</h2>
           <p>A church admin may upload a banner image for their church. It is shown on the church's card and on the church's professional groups page. A church admin can replace or remove it at any time.</p>
           <h2>Church admin responsibilities</h2>
@@ -774,7 +776,7 @@ export default function App() {
           <h1>Privacy Policy</h1>
           <p className="muted">Plain-language privacy notes for Believers Professional Network (BPN). This page describes what the app actually collects and how it is used — nothing more.</p>
           <h2>What is collected</h2>
-          <p><b>Churches:</b> church name and city. <b>Church admins:</b> name and email, plus a password that is stored hashed, never in plain text. <b>Members:</b> the name, profession, and contact details given when joining a church's member list. <b>Chats and comments:</b> chat titles, opening messages, and comment text.</p>
+          <p><b>Churches:</b> church name and city. <b>Church admins:</b> name and email, plus a password that is stored hashed, never in plain text. <b>Members:</b> the name, profession, and contact details — plus optional best time to contact and interesting facts — given when joining a church's member list. <b>Chats and comments:</b> chat titles, opening messages, and comment text.</p>
           <h2>What is not collected</h2>
           <p>No account is needed to browse churches and groups, create a chat, or comment — so no identity is collected for those actions. Comments carry no name at all: they show only the word “member” with a colorful person icon.</p>
           <h2>Sign-in tokens</h2>
@@ -816,7 +818,7 @@ export default function App() {
             </article>
             <article className="how-step">
               <span className="how-num">5</span>
-              <div><h2>Join as a member</h2><p>After entering the code, tap “Join a group” and add your name, profession, and contact to join your church's member list.</p></div>
+              <div><h2>Join as a member</h2><p>After entering the code, tap “Join a group” and add your name, profession, and contact — plus, if you like, your best time to contact and any interesting facts about you — to join your church's member list.</p></div>
             </article>
             <article className="how-step">
               <span className="how-num">6</span>
