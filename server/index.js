@@ -111,9 +111,13 @@ app.get('/api/churches', async (req, res) => {
 
 app.post('/api/churches', async (req, res) => {
   try {
-    const { name, city, registrar_name, registrar_email, password, banner_data_url } = req.body || {};
+    const { name, city, registrar_name, registrar_email, password, pin, banner_data_url } = req.body || {};
     if (!name?.trim() || !registrar_name?.trim() || !EMAIL_RE.test(registrar_email || '') || !password || password.length < 6) {
       return res.status(400).json({ error: 'Church name, church admin name, a valid email and a password of 6+ characters are required.' });
+    }
+    const connectCode = String(pin || '').trim().toUpperCase();
+    if (!PIN_RE.test(connectCode)) {
+      return res.status(400).json({ error: 'A connect code of exactly 4 letters or numbers is required.' });
     }
     let banner = null;
     if (banner_data_url) {
@@ -123,9 +127,9 @@ app.post('/api/churches', async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     const { rows: existing } = await pool.query('SELECT background_image FROM churches');
     const { rows } = await pool.query(
-      `INSERT INTO churches (name, city, registrar_name, registrar_email, password_hash, background_image, banner_data, banner_mime)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [name.trim(), (city || '').trim(), registrar_name.trim(), registrar_email.trim().toLowerCase(), hash,
+      `INSERT INTO churches (name, city, registrar_name, registrar_email, password_hash, pin, background_image, banner_data, banner_mime)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [name.trim(), (city || '').trim(), registrar_name.trim(), registrar_email.trim().toLowerCase(), hash, connectCode,
        pickDistinctBackground(existing.map((r) => r.background_image)), banner?.base64 || null, banner?.mime || null]
     );
     const church = rows[0];
@@ -200,13 +204,13 @@ app.get('/api/me', authRegistrar, (req, res) => {
   res.json({ church: fullChurch(c) });
 });
 
-// Registrar: create / change the 4-character member PIN. The PIN is
+// Registrar: create / change the 4-character connect code. The code is
 // normalized (trimmed, uppercased) before the spec check, so a code typed
 // with surrounding whitespace or in lowercase is still accepted; unlock and
 // join already compare case-insensitively, so stored case is consistent.
 app.post('/api/churches/:id/pin', authRegistrar, requireOwnChurch, async (req, res) => {
   const pin = String(req.body?.pin || '').trim().toUpperCase();
-  if (!PIN_RE.test(pin)) return res.status(400).json({ error: 'PIN must be exactly 4 letters or numbers.' });
+  if (!PIN_RE.test(pin)) return res.status(400).json({ error: 'Connect code must be exactly 4 letters or numbers.' });
   await pool.query('UPDATE churches SET pin = $1 WHERE id = $2', [pin, req.registrar.id]);
   res.json({ ok: true });
 });
@@ -238,7 +242,7 @@ app.delete('/api/churches/:id/banner', authRegistrar, requireOwnChurch, async (r
 });
 
 // Church announcements: posted by the owning church's admin only (auth +
-// own-church guard, same as PIN/banner), displayed publicly per church,
+// own-church guard, same as connect code/banner), displayed publicly per church,
 // newest first. Image (optional) uses the same validation as banners:
 // JPG/PNG/WebP, 5MB cap, stored in Postgres, never on disk.
 app.get('/api/churches/:id/announcements', async (req, res) => {
@@ -307,25 +311,25 @@ app.post('/api/churches/:id/announcements', authRegistrar, requireOwnChurch, asy
   }
 });
 
-// Public: check a PIN to unlock a church area (never reveals the PIN).
+// Public: check a connect code to unlock a church area (never reveals the code).
 app.post('/api/churches/:id/unlock', async (req, res) => {
   const { rows } = await pool.query('SELECT pin FROM churches WHERE id = $1', [req.params.id]);
   if (!rows.length) return res.status(404).json({ error: 'Church not found.' });
-  if (!rows[0].pin) return res.status(400).json({ error: 'This church has no member code yet — ask its church admin to set one.' });
+  if (!rows[0].pin) return res.status(400).json({ error: 'This church has no connect code yet — ask its church admin for the connect code.' });
   if (String(req.body?.pin || '').toUpperCase() !== rows[0].pin.toUpperCase()) {
     return res.status(403).json({ error: 'That code is incorrect. Please check with your church admin.' });
   }
   res.json({ ok: true });
 });
 
-// Member join: NO login, but the PIN is verified server-side. Never trust the client unlock alone.
+// Member join: NO login, but the connect code is verified server-side. Never trust the client unlock alone.
 app.post('/api/churches/:id/members', async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT * FROM churches WHERE id = $1', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Church not found.' });
     const church = rows[0];
     if (!church.pin || String(req.body?.pin || '').toUpperCase() !== church.pin.toUpperCase()) {
-      return res.status(403).json({ error: 'A correct member code is required to join.' });
+      return res.status(403).json({ error: 'A correct connect code is required to join.' });
     }
     const { name, profession, contact } = req.body || {};
     if (!name?.trim()) return res.status(400).json({ error: 'Please add your name.' });
