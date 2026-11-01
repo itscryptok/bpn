@@ -94,6 +94,11 @@ export const CHURCH_BACKGROUNDS = [
   '/img/church2-12.webp'
 ];
 
+// Gospel-specific backdrop reserved for Grace Fellowship Test Church ONLY.
+// It is deliberately NOT in CHURCH_BACKGROUNDS, so pickDistinctBackground
+// can never assign it to another church.
+export const GOSPEL_BACKGROUND = '/img/church-gospel.webp';
+
 // Distinct assignment (hard rule): prefer a backdrop no church uses yet;
 // only when the whole pool is in use, reuse the least-used one. `used` is
 // the list of background_image values currently stored on churches.
@@ -137,7 +142,7 @@ export async function initDb() {
   const usedBackdrops = [];
   for (const row of allChurches) {
     const bg = row.background_image || '';
-    if (bg && CHURCH_BACKGROUNDS.includes(bg) && !usedBackdrops.includes(bg)) {
+    if (bg && (CHURCH_BACKGROUNDS.includes(bg) || bg === GOSPEL_BACKGROUND) && !usedBackdrops.includes(bg)) {
       usedBackdrops.push(bg);
       continue;
     }
@@ -145,6 +150,15 @@ export async function initDb() {
     usedBackdrops.push(next);
     await pool.query('UPDATE churches SET background_image = $1 WHERE id = $2', [next, row.id]);
   }
+
+  // Grace Fellowship Test Church gets the unmistakably-gospel choir image
+  // as its stored backdrop (owner's request — the baptismal font did not
+  // read as gospel). Runs every boot so the assignment sticks across
+  // redeploys; a no-op once set, and it never touches any other church.
+  await pool.query(
+    `UPDATE churches SET background_image = $1 WHERE name = $2 AND background_image IS DISTINCT FROM $1`,
+    [GOSPEL_BACKGROUND, 'Grace Fellowship Test Church']
+  );
 
   // Seed DB-backed config (only when empty). Groups, copy and toggles live
   // here so a future admin board can edit them without touching code.
