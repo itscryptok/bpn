@@ -127,6 +127,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [admin, setAdmin] = useState(null);
   const [adminConfigured, setAdminConfigured] = useState(null);
+  const [confirmDeleteChurch, setConfirmDeleteChurch] = useState(null);
   const [showBenefits, setShowBenefits] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [bannerFile, setBannerFile] = useState(null);
@@ -691,6 +692,22 @@ export default function App() {
                     <b>{c.name}</b><span>{c.city}</span>
                     <span>{c.member_count} members · {c.chat_count} chats</span>
                     <span className="muted">{c.sheet_url ? `Sheet linked${c.google_account_ref ? ` (${c.google_account_ref})` : ''}` : 'No Sheet linked'}</span>
+                    {confirmDeleteChurch === c.id ? (
+                      <span>
+                        <span>Delete this church and all its members, chats, and announcements? This cannot be undone.</span>
+                        <button type="button" onClick={async () => {
+                          try {
+                            const tok = localStorage.getItem('bpn_admin_token');
+                            await api(`/api/admin/churches/${c.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${tok}` } });
+                            setConfirmDeleteChurch(null);
+                            setAdmin(await api('/api/admin/overview', { headers: { Authorization: `Bearer ${tok}` } }));
+                          } catch (e) { setError(e?.message || 'Could not delete the church.'); }
+                        }}>Yes, delete</button>
+                        <button type="button" className="muted-btn" onClick={() => setConfirmDeleteChurch(null)}>Cancel</button>
+                      </span>
+                    ) : (
+                      <button type="button" className="muted-btn" onClick={() => setConfirmDeleteChurch(c.id)}>Delete church</button>
+                    )}
                   </article>
                 ))}
               </section>
