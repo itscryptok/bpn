@@ -105,7 +105,7 @@ function Field({ label, ...props }) {
 }
 
 export default function App() {
-  const [view, setView] = useState(window.location.pathname.startsWith('/addy') ? 'admin' : window.location.pathname === '/register-church' ? 'register' : 'home');
+  const [view, setView] = useState(window.location.pathname.startsWith('/addy') ? 'admin' : window.location.pathname === '/register-church' ? 'register' : window.location.pathname === '/terms-of-use' ? 'terms' : window.location.pathname === '/privacy-policy' ? 'privacy' : 'home');
   const [config, setConfig] = useState({ groups: [], copy: {}, toggles: {} });
   const [churches, setChurches] = useState([]);
   const [query, setQuery] = useState('');
@@ -136,7 +136,9 @@ export default function App() {
     window.scrollTo(0, 0);
     if (v === 'admin') window.history.pushState({}, '', '/addy');
     else if (v === 'register') window.history.pushState({}, '', '/register-church');
-    else if (window.location.pathname.startsWith('/addy') || window.location.pathname === '/register-church') window.history.pushState({}, '', '/');
+    else if (v === 'terms') window.history.pushState({}, '', '/terms-of-use');
+    else if (v === 'privacy') window.history.pushState({}, '', '/privacy-policy');
+    else if (window.location.pathname.startsWith('/addy') || window.location.pathname === '/register-church' || window.location.pathname === '/terms-of-use' || window.location.pathname === '/privacy-policy') window.history.pushState({}, '', '/');
   };
 
   const loadChurches = async (q = '') => {
@@ -233,7 +235,7 @@ export default function App() {
       {view === 'home' && (
         <main>
           <img className="home-banner" src="/img/banner.jpg" alt="Believers Professional Network — Stronger Together. Connect, Collaborate, Grow, Make an impact." />
-          <p className="find-tagline">Connect. Collaborate. Make impact.</p>
+          <p className="find-tagline">Connect. Collaborate. Make an impact.</p>
           <p className="find-subline">no sign-up needed</p>
 
           <section className="search-zone">
@@ -264,7 +266,6 @@ export default function App() {
               ))}
             </section>
           )}
-          <footer><a href="/addy">Admin</a> · Believers Professional Network · Stronger Together</footer>
         </main>
       )}
 
@@ -602,6 +603,70 @@ export default function App() {
           )}
         </main>
       )}
+
+      {view === 'terms' && (
+        <main className="narrow">
+          <button className="back" onClick={() => go('home')}>← Home</button>
+          <h1>Terms of Use</h1>
+          <p className="muted">Plain-language terms for Believers Professional Network (BPN). By using this site, you agree to these terms.</p>
+          <h2>What BPN is for</h2>
+          <p>BPN connects believers through their church's professional groups — a place to engage with other professionals, share opportunities and information, encourage one another, and discuss workplace life built on godly principles.</p>
+          <h2>No sign-up needed to take part</h2>
+          <p>You do not need an account to browse churches and professional groups, create a chat, or comment. Creating a chat or commenting needs no sign-in at all.</p>
+          <h2>Comments are anonymous</h2>
+          <p>Comments show only the word “member” with a colorful person icon. No real names appear on comments, and a comment is never tied to a named account.</p>
+          <h2>Member codes</h2>
+          <p>Each church has a 4-character member code set by its registrar. You need that code — given to you by your church's registrar — to enter a church's area and to join its member list. Keep your church's code for its members.</p>
+          <h2>Joining a member list</h2>
+          <p>Joining asks for your name, profession, and contact. Those details go to your church's member list, which the church's registrar can view. A registrar may link the list to a Google Sheet, and can export it as a CSV file.</p>
+          <h2>Church banners</h2>
+          <p>A registrar may upload a banner image for their church. It is shown on the church's card and on the church's professional groups page. A registrar can replace or remove it at any time.</p>
+          <h2>Registrar responsibilities</h2>
+          <p>The registrar manages their church on BPN: they set and change the member code, view the member list, and manage the church banner. The site administrator manages the app itself.</p>
+          <h2>Use the network respectfully</h2>
+          <p>Use BPN in a way that fits a professional network built on godly principles: be encouraging, share genuine opportunities and information, and respect other members.</p>
+          <h2>Availability</h2>
+          <p>BPN runs on free-tier hosting, so after a quiet spell the first page load can take a little while as the service wakes up.</p>
+          <h2>Changes to these terms</h2>
+          <p>These terms may be updated from time to time. Continued use of the site after an update means you accept the updated terms.</p>
+        </main>
+      )}
+
+      {view === 'privacy' && (
+        <main className="narrow">
+          <button className="back" onClick={() => go('home')}>← Home</button>
+          <h1>Privacy Policy</h1>
+          <p className="muted">Plain-language privacy notes for Believers Professional Network (BPN). This page describes what the app actually collects and how it is used — nothing more.</p>
+          <h2>What is collected</h2>
+          <p><b>Churches:</b> church name and city. <b>Registrars:</b> name and email, plus a password that is stored hashed, never in plain text. <b>Members:</b> the name, profession, and contact details given when joining a church's member list. <b>Chats and comments:</b> chat titles, opening messages, and comment text.</p>
+          <h2>What is not collected</h2>
+          <p>No account is needed to browse churches and groups, create a chat, or comment — so no identity is collected for those actions. Comments carry no name at all: they show only the word “member” with a colorful person icon.</p>
+          <h2>Sign-in tokens</h2>
+          <p>Registrar and admin sign-in tokens are stored in your browser's local storage so you stay signed in. Logging out removes them.</p>
+          <h2>Member lists and Google Sheets</h2>
+          <p>Member details are visible to that church's registrar through the member list. If the registrar links a Google Sheet, the list can be viewed there, and the registrar can also export it as a CSV file. Automatic syncing to a Sheet only runs when a service account is connected; otherwise the registrar imports the CSV manually.</p>
+          <h2>Member codes</h2>
+          <p>Each church's 4-character member code is set by its registrar and is not public. It is needed to enter a church's area and to join its member list.</p>
+          <h2>Church banners</h2>
+          <p>A banner image uploaded by a registrar is stored in the app's database and shown on that church's card and professional groups page. Removing it returns the card to its default letter tile.</p>
+          <h2>Questions about your data</h2>
+          <p>Your member details are held in your church's member list, so questions about them are best raised with your church's registrar.</p>
+          <h2>Changes to this policy</h2>
+          <p>This policy may be updated from time to time. Continued use of the site after an update means you accept the updated policy.</p>
+        </main>
+      )}
+
+      <footer className="site-footer">
+        <span>Believers Professional Network · Stronger Together</span>
+        <nav aria-label="Footer">
+          <button type="button" onClick={() => go('register')}>Register your church</button>
+          <button type="button" onClick={() => setShowBenefits(true)}>The Benefits</button>
+          <a href="https://cryptok.online" target="_blank" rel="noreferrer">Build your pro website ↗</a>
+          <button type="button" onClick={() => go('login')}>Registrar login</button>
+          <button type="button" onClick={() => go('terms')}>Terms of Use</button>
+          <button type="button" onClick={() => go('privacy')}>Privacy</button>
+        </nav>
+      </footer>
     </div>
   );
 }
