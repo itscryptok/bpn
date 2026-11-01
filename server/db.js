@@ -192,6 +192,7 @@ export async function initDb() {
   await pool.query(`UPDATE churches SET name = $1 WHERE name = $2`, ['Sample Believers Love World', 'BPN Test Church']);
   await pool.query(`UPDATE churches SET name = $1 WHERE name = $2`, ['Sample Believers Love World', 'Believers Love World Test']);
   await pool.query(`UPDATE churches SET name = $1 WHERE name = $2`, ['Sample Rock City', 'Banner Test Church']);
+  await pool.query(`UPDATE churches SET name = $1 WHERE name = $2`, ['Sample Rock City Church', 'Sample Rock City']);
 
   // Seed DB-backed config (only when empty). Groups, copy and toggles live
   // here so a future admin board can edit them without touching code.
