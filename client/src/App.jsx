@@ -2,7 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { PersonIcon } from './avatars.jsx';
 
 const api = async (path, opts = {}) => {
-  const res = await fetch(path, { headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) }, ...opts });
+  // NOTE: opts must NOT be spread after `headers` — spreading it last used
+  // to overwrite the merged headers with opts.headers alone, silently
+  // dropping Content-Type on every authenticated call. Express's json()
+  // then ignored the body, so authenticated POSTs (PIN, banner, sheet)
+  // arrived with an empty body and failed validation for every input.
+  const { headers, ...rest } = opts;
+  const res = await fetch(path, { headers: { 'Content-Type': 'application/json', ...(headers || {}) }, ...rest });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Something went wrong.');
   return data;
@@ -270,7 +276,7 @@ export default function App() {
             const payload = Object.fromEntries(f);
             if (bannerFile) payload.banner_data_url = await fileToDataUrl(bannerFile);
             const d = await api('/api/churches', { method: 'POST', body: JSON.stringify(payload) });
-            localStorage.setItem('bpn_token', d.token); setRegistrar(d.church);
+            localStorage.setItem('bpn_token', d.token); setRegistrar(d.church); loadChurches();
             setNotice('Church registered. Now set your 4-character member code.'); go('dashboard');
           })}>
             <Field label="Church name" name="name" required />
@@ -487,7 +493,7 @@ export default function App() {
                 try {
                   const dataUrl = await fileToDataUrl(dashBannerFile);
                   await api(`/api/churches/${registrar.id}/banner`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ banner_data_url: dataUrl }) });
-                  const me = await api('/api/me', { headers: authHeaders() }); setRegistrar(me.church);
+                  const me = await api('/api/me', { headers: authHeaders() }); setRegistrar(me.church); loadChurches();
                   setDashBannerFile(null); setDashBannerPreview(''); setDashBannerMsg('Banner saved.');
                 } catch (err) { setDashBannerMsg(err.message); }
               }}>{registrar.has_banner ? 'Replace banner' : 'Upload banner'}</button>
@@ -495,7 +501,7 @@ export default function App() {
                 <button className="gold-btn outline" onClick={async () => {
                   try {
                     await api(`/api/churches/${registrar.id}/banner`, { method: 'DELETE', headers: authHeaders() });
-                    const me = await api('/api/me', { headers: authHeaders() }); setRegistrar(me.church);
+                    const me = await api('/api/me', { headers: authHeaders() }); setRegistrar(me.church); loadChurches();
                     setDashBannerMsg('Banner removed — your church card now shows its default letter tile.');
                   } catch (err) { setDashBannerMsg(err.message); }
                 }}>Remove banner</button>
