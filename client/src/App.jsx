@@ -59,7 +59,7 @@ function Field({ label, ...props }) {
 }
 
 export default function App() {
-  const [view, setView] = useState(window.location.pathname.startsWith('/addy') ? 'admin' : 'home');
+  const [view, setView] = useState(window.location.pathname.startsWith('/addy') ? 'admin' : window.location.pathname === '/register-church' ? 'register' : 'home');
   const [config, setConfig] = useState({ groups: [], copy: {}, toggles: {} });
   const [churches, setChurches] = useState([]);
   const [query, setQuery] = useState('');
@@ -82,7 +82,8 @@ export default function App() {
     setView(v); setError(''); setNotice('');
     window.scrollTo(0, 0);
     if (v === 'admin') window.history.pushState({}, '', '/addy');
-    else if (window.location.pathname.startsWith('/addy')) window.history.pushState({}, '', '/');
+    else if (v === 'register') window.history.pushState({}, '', '/register-church');
+    else if (window.location.pathname.startsWith('/addy') || window.location.pathname === '/register-church') window.history.pushState({}, '', '/');
   };
 
   const loadChurches = async (q = '') => {
@@ -127,7 +128,6 @@ export default function App() {
     setMembers(list); go('members');
   };
 
-  const copy = config.copy || {};
   const groups = config.groups || [];
 
   return (
@@ -154,15 +154,8 @@ export default function App() {
 
       {view === 'home' && (
         <main>
-          <section className="hero">
-            <img src="/hero.svg" alt="" />
-            <div className="hero-text">
-              <h1>{copy.hero_title || 'Believers Professional Network'}</h1>
-              <p>{copy.tagline || 'Stronger Together'} <Info text="BPN connects members of a church across professions, so skills, opportunities and encouragement are shared inside the community." /></p>
-              <p className="sub">{copy.hero_sub || 'Connect. Collaborate. Grow. Make an impact.'}</p>
-              <button className="gold-btn big" onClick={() => go('register')}>Register your church</button>
-            </div>
-          </section>
+          <img className="home-banner" src="/img/banner.jpg" alt="Believers Professional Network — Stronger Together. Connect, Collaborate, Grow, Make an impact." />
+          <h1 className="find-heading">Find your church group</h1>
 
           <section className="search-zone">
             <label>Find your church</label>
