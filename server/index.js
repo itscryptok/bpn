@@ -137,7 +137,7 @@ app.post('/api/churches', async (req, res) => {
     // registration, so cleanup happens the moment the fourth non-test
     // church registers. A cleanup failure must never fail the registration.
     try {
-      const TEST_CHURCH_NAMES = ['Sample Grace Fellowship', 'Sample Believers Love World', 'Sample Rock City'];
+      const TEST_CHURCH_NAMES = ['Sample Grace Fellowship', 'Sample Believers Love World', 'Sample Rock City Church'];
       const { rows: cnt } = await pool.query(
         `SELECT COUNT(*)::int AS n FROM churches WHERE NOT (name = ANY($1))`, [TEST_CHURCH_NAMES]
       );
