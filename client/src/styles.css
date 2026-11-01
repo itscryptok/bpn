@@ -63,6 +63,11 @@ h1 { font-size: 30px; line-height: 1.2; }
 .announcement-card h3 { margin: 0 0 8px; }
 .announcement-card p { margin: 0 0 10px; white-space: pre-wrap; word-break: break-word; }
 .announcement-card img { width: 100%; height: 220px; object-fit: cover; border-radius: 12px; display: block; }
+/* Announcements pop-up on the chat page: same backdrop/X behavior as the
+   Benefits modal; the list scrolls inside the modal when it gets long. */
+.modal-card.ann-modal { max-height: 85vh; overflow-y: auto; }
+.ann-modal-list { display: flex; flex-direction: column; gap: 16px; margin-top: 14px; }
+.ann-modal-list .announcement-card { border: 0; box-shadow: none; padding: 0; }
 /* How it works: numbered step cards; step 2 (the church-admin code) is
    the key step, so it gets the prominent gold-bordered treatment. */
 .how-steps { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
