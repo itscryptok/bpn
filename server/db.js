@@ -68,27 +68,44 @@ async function createTables(client) {
     );
     ALTER TABLE churches ADD COLUMN IF NOT EXISTS google_account_ref TEXT;
     ALTER TABLE churches ADD COLUMN IF NOT EXISTS background_image TEXT;
+    -- Registrar-uploaded church banner, stored durably in Postgres (never on
+    -- local disk — Render's free-tier filesystem is ephemeral). banner_data
+    -- is base64 image bytes; banner_mime is its content type.
+    ALTER TABLE churches ADD COLUMN IF NOT EXISTS banner_data TEXT;
+    ALTER TABLE churches ADD COLUMN IF NOT EXISTS banner_mime TEXT;
   `);
 }
 
-// One stored background per church, picked at random from these faith-themed
-// images when the church registers. The choice lives in the DB so a church's
-// card image never reshuffles on reload.
+// Fresh AI-designed church-card backdrops (second set — the first set's
+// church-01..10 files are retired and no longer referenced). Each church
+// keeps one stored backdrop so its card never reshuffles on reload.
 export const CHURCH_BACKGROUNDS = [
-  '/img/church-01.webp',
-  '/img/church-02.webp',
-  '/img/church-03.webp',
-  '/img/church-04.webp',
-  '/img/church-05.webp',
-  '/img/church-06.webp',
-  '/img/church-07.webp',
-  '/img/church-08.webp',
-  '/img/church-09.webp',
-  '/img/church-10.webp'
+  '/img/church2-01.webp',
+  '/img/church2-02.webp',
+  '/img/church2-03.webp',
+  '/img/church2-04.webp',
+  '/img/church2-05.webp',
+  '/img/church2-06.webp',
+  '/img/church2-07.webp',
+  '/img/church2-08.webp',
+  '/img/church2-09.webp',
+  '/img/church2-10.webp',
+  '/img/church2-11.webp',
+  '/img/church2-12.webp'
 ];
 
-export function randomChurchBackground() {
-  return CHURCH_BACKGROUNDS[Math.floor(Math.random() * CHURCH_BACKGROUNDS.length)];
+// Distinct assignment (hard rule): prefer a backdrop no church uses yet;
+// only when the whole pool is in use, reuse the least-used one. `used` is
+// the list of background_image values currently stored on churches.
+export function pickDistinctBackground(used = []) {
+  const counts = new Map();
+  for (const u of used) counts.set(u, (counts.get(u) || 0) + 1);
+  const unused = CHURCH_BACKGROUNDS.filter((b) => !counts.has(b));
+  if (unused.length) return unused[Math.floor(Math.random() * unused.length)];
+  let min = Infinity;
+  for (const b of CHURCH_BACKGROUNDS) min = Math.min(min, counts.get(b) || 0);
+  const least = CHURCH_BACKGROUNDS.filter((b) => (counts.get(b) || 0) === min);
+  return least[Math.floor(Math.random() * least.length)];
 }
 
 export async function initDb() {
@@ -109,13 +126,24 @@ export async function initDb() {
     await createTables(pool);
   }
 
-  // Backfill: churches created before backgrounds existed get a stored random
-  // background (idempotent — only touches rows with none assigned).
-  const { rows: unassigned } = await pool.query(
-    `SELECT id FROM churches WHERE background_image IS NULL OR background_image = ''`
+  // Backfill + distinctness enforcement (idempotent): every church ends up
+  // with a distinct backdrop from the current pool. Churches with no
+  // backdrop, a backdrop from the retired first set, or a backdrop another
+  // church already uses are reassigned (oldest church first). Uploaded
+  // banners are untouched — this only governs the default backdrop.
+  const { rows: allChurches } = await pool.query(
+    `SELECT id, background_image FROM churches ORDER BY created_at ASC, id ASC`
   );
-  for (const row of unassigned) {
-    await pool.query('UPDATE churches SET background_image = $1 WHERE id = $2', [randomChurchBackground(), row.id]);
+  const usedBackdrops = [];
+  for (const row of allChurches) {
+    const bg = row.background_image || '';
+    if (bg && CHURCH_BACKGROUNDS.includes(bg) && !usedBackdrops.includes(bg)) {
+      usedBackdrops.push(bg);
+      continue;
+    }
+    const next = pickDistinctBackground(usedBackdrops);
+    usedBackdrops.push(next);
+    await pool.query('UPDATE churches SET background_image = $1 WHERE id = $2', [next, row.id]);
   }
 
   // Seed DB-backed config (only when empty). Groups, copy and toggles live
