@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
-import { pool, initDb, getSetting } from './db.js';
+import { pool, initDb, getSetting, randomChurchBackground } from './db.js';
 import { signToken, verifyToken, signAdminToken, verifyAdminToken } from './auth.js';
 import { appendMemberToSheet } from './sheets.js';
 
@@ -30,7 +30,8 @@ async function groupsList() {
 function publicChurch(row) {
   return {
     id: row.id, name: row.name, city: row.city,
-    has_pin: !!row.pin, created_at: row.created_at
+    has_pin: !!row.pin, background_image: row.background_image || null,
+    created_at: row.created_at
   };
 }
 
@@ -90,9 +91,9 @@ app.post('/api/churches', async (req, res) => {
     }
     const hash = await bcrypt.hash(password, 10);
     const { rows } = await pool.query(
-      `INSERT INTO churches (name, city, registrar_name, registrar_email, password_hash)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [name.trim(), (city || '').trim(), registrar_name.trim(), registrar_email.trim().toLowerCase(), hash]
+      `INSERT INTO churches (name, city, registrar_name, registrar_email, password_hash, background_image)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [name.trim(), (city || '').trim(), registrar_name.trim(), registrar_email.trim().toLowerCase(), hash, randomChurchBackground()]
     );
     const church = rows[0];
     res.status(201).json({ church: publicChurch(church), token: signToken(church.id) });
