@@ -86,3 +86,9 @@ h1 { font-size: 30px; line-height: 1.2; }
 .modal-card li { margin: 8px 0; }
 .modal-close { position: absolute; top: 10px; right: 12px; background: none; border: 0; color: #141414; font-size: 26px; line-height: 1; padding: 4px 8px; }
 footer { text-align: center; color: var(--muted); padding: 32px 0 0; }
+.burger-btn { background: var(--gold); color: var(--navy); border: 0; border-radius: 12px; width: 46px; height: 46px; font-size: 24px; line-height: 1; font-weight: 700; flex: none; }
+.menu-backdrop { position: fixed; inset: 0; background: rgba(4,18,54,.55); z-index: 60; display: flex; justify-content: flex-end; align-items: flex-start; padding: 16px; }
+.menu-panel { position: relative; background: #fff; color: #141414; border-radius: 20px; padding: 56px 22px 22px; width: min(320px, 92vw); box-shadow: 0 16px 40px rgba(0,0,0,.30); display: flex; flex-direction: column; gap: 8px; }
+.menu-panel > button:not(.menu-close), .menu-panel > a { background: none; border: 0; color: var(--navy); font-weight: 700; font-size: 17px; text-align: left; padding: 14px 10px; text-decoration: none; border-radius: 12px; }
+.menu-panel > button:not(.menu-close):hover, .menu-panel > a:hover { background: #f6f7fb; }
+.menu-close { position: absolute; top: 10px; right: 12px; background: none; border: 0; color: #141414; font-size: 26px; line-height: 1; padding: 4px 8px; }
